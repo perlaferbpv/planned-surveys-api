@@ -19,6 +19,13 @@
         font-style: normal;
         font-display: swap;
       }
+      @font-face {
+        font-family: "SLB Sans Bold";
+        src: url("fonts/SLBSans-Bold.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
       :root {
         --slb-brand: #0014dc;
         --slb-brand-hover: #0012be;
@@ -51,8 +58,10 @@
       .page-title {
         margin: 0;
         flex: 1;
+        font-family: "SLB Sans Bold", "SLB Sans", Aptos, "Segoe UI", Arial, sans-serif;
         font-size: 22px;
-        font-weight: 700;
+        font-weight: 400;
+        font-style: normal;
         color: var(--slb-brand);
         line-height: 1.25;
         padding: 0 0 10px;
