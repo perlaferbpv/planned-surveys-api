@@ -5,12 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Planned surveys to xml (WITSML)</title>
     <style>
+      @font-face {
+        font-family: "SLB Sans";
+        src: url("fonts/SLBSans-Regular.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "SLB Sans";
+        src: url("fonts/SLBSans-MediumItalic.otf") format("opentype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
       :root {
         --slb-brand: #0014dc;
+        --slb-brand-hover: #0012be;
         --slb-panel: #9fadcd;
         --slb-panel-hover: #8f9ebe;
         --text: #55585e;
-        font-family: Aptos, "Segoe UI", Arial, sans-serif;
+        font-family: "SLB Sans", Aptos, "Segoe UI", Arial, sans-serif;
         font-size: 12px;
         color: var(--text);
         background: #fff;
@@ -33,12 +48,12 @@
       .page-title {
         margin: 0;
         flex: 1;
-        font-family: Aptos, "Segoe UI", Arial, sans-serif;
-        font-size: 12px;
+        font-size: 22px;
         font-weight: 700;
         color: var(--slb-brand);
-        line-height: 1.35;
-        padding-top: 4px;
+        line-height: 1.25;
+        padding-top: 8px;
+        letter-spacing: 0.01em;
       }
       .top-bar-right {
         display: flex;
@@ -86,19 +101,19 @@
       }
       #btnExport,
       #btnClear {
-        background: #fff;
-        border: 1px solid var(--slb-brand);
+        background: var(--slb-brand);
+        border: 1px solid #fff;
       }
       #btnExport:hover,
       #btnClear:hover {
-        background: #f0f3ff;
+        background: var(--slb-brand-hover);
       }
       .icon-export,
       .icon-clear {
         display: block;
         width: 44px;
         height: 44px;
-        background-color: var(--slb-brand);
+        background-color: #fff;
         mask: center / contain no-repeat;
         -webkit-mask: center / contain no-repeat;
       }
@@ -201,7 +216,13 @@
             </button>
           </div>
         </div>
-        <img class="logo" src="slb-logo.png" width="240" height="72" alt="SLB" />
+        <img
+          class="logo"
+          src="slb-logo-positive.png"
+          width="240"
+          height="72"
+          alt="SLB"
+        />
       </div>
     </header>
 
