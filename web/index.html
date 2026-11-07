@@ -3,179 +3,176 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Planned Surveys → WITSML XML</title>
+    <title>Planned surveys generator</title>
     <style>
       :root {
-        font-family: system-ui, Segoe UI, sans-serif;
-        line-height: 1.45;
-        color: #1a1a1a;
-        background: #f4f6f8;
+        font-family: "Segoe UI", system-ui, sans-serif;
+        font-size: 14px;
+        color: #000;
+        background: #fff;
       }
       body {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 1.5rem;
+        margin: 1rem 1.25rem 2rem;
       }
-      h1 {
-        font-size: 1.35rem;
-        margin-bottom: 0.25rem;
-      }
-      .hint {
-        color: #444;
-        font-size: 0.95rem;
-        margin-bottom: 1rem;
-      }
-      .grid {
-        display: grid;
-        gap: 1rem;
-        grid-template-columns: 1fr 1fr;
-      }
-      @media (max-width: 900px) {
-        .grid {
-          grid-template-columns: 1fr;
-        }
-      }
-      label {
-        display: block;
-        font-weight: 600;
-        margin-bottom: 0.35rem;
-        font-size: 0.9rem;
-      }
-      input[type="text"],
-      textarea {
-        width: 100%;
-        box-sizing: border-box;
-        border: 1px solid #ccc;
-        border-radius: 6px;
-        padding: 0.5rem;
-        font: inherit;
-      }
-      textarea {
-        min-height: 220px;
-        font-family: ui-monospace, Consolas, monospace;
-        font-size: 0.85rem;
+      .layout {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1.5rem;
+        align-items: flex-start;
       }
       table {
-        width: 100%;
         border-collapse: collapse;
         background: #fff;
-        font-size: 0.85rem;
       }
       th,
       td {
-        border: 1px solid #ddd;
-        padding: 0.35rem;
-        text-align: left;
+        border: 1px solid #b4b4b4;
+        padding: 4px 8px;
+        text-align: center;
+        min-width: 4.5rem;
       }
-      th {
-        background: #e8eef3;
-      }
-      td input {
-        width: 100%;
-        border: none;
-        padding: 0.25rem;
-        font: inherit;
-      }
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 0.5rem;
-        margin: 1rem 0;
-      }
-      button {
-        cursor: pointer;
-        border: none;
-        border-radius: 6px;
-        padding: 0.55rem 1rem;
-        font: inherit;
-        background: #0078d4;
+      thead tr:first-child th {
+        background: #217346;
         color: #fff;
+        font-weight: 600;
       }
-      button.secondary {
-        background: #5a6268;
-      }
-      button.ghost {
-        background: #fff;
-        color: #0078d4;
-        border: 1px solid #0078d4;
-      }
-      #output {
-        min-height: 280px;
-      }
-      .note {
+      thead tr.units th {
+        background: #e2efda;
+        color: #333;
+        font-weight: 500;
         font-size: 0.85rem;
-        color: #555;
-        margin-top: 0.75rem;
+      }
+      tbody td {
+        padding: 0;
+      }
+      tbody input {
+        width: 100%;
+        min-width: 4rem;
+        border: none;
+        padding: 6px 8px;
+        text-align: center;
+        font: inherit;
+        box-sizing: border-box;
+      }
+      tbody input:focus {
+        outline: 2px solid #217346;
+        outline-offset: -2px;
+      }
+      .side {
+        max-width: 280px;
+      }
+      .tile {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 140px;
+        height: 110px;
+        margin-bottom: 1rem;
+        border: 1px solid #b4b4b4;
+        background: #f9f9f9;
+        cursor: pointer;
+        font: inherit;
+        color: inherit;
+      }
+      .tile:hover {
+        background: #eef6ff;
+        border-color: #0078d4;
+      }
+      .tile strong {
+        margin-top: 0.5rem;
+        font-size: 0.9rem;
+      }
+      .tile.clear {
+        color: #333;
+      }
+      .instructions {
+        font-size: 0.9rem;
+        line-height: 1.5;
+        color: #333;
+      }
+      .instructions ol {
+        padding-left: 1.2rem;
+      }
+      .meta-note {
+        font-size: 0.8rem;
+        color: #666;
+        margin-top: 1rem;
       }
     </style>
   </head>
   <body>
-    <h1>Planned Surveys → WITSML XML</h1>
-    <p class="hint">
-      Misma lógica que la macro del Excel <em>Planned surveys generator</em> (hoja Data, fila 4+).
-      Todo ocurre en tu navegador: no hace falta Azure ni servidor.
-    </p>
-
-    <div class="grid">
+    <div class="layout">
       <div>
-        <label for="nameWell">nameWell</label>
-        <input id="nameWell" type="text" value="Well 1" />
+        <table id="dataTable">
+          <thead>
+            <tr>
+              <th>md</th>
+              <th>incl</th>
+              <th>azi</th>
+              <th>tvd</th>
+              <th>mdDelta</th>
+              <th>vertSect</th>
+              <th>dls</th>
+              <th>dispNs</th>
+              <th>dispEw</th>
+            </tr>
+            <tr class="units">
+              <th>m</th>
+              <th>deg</th>
+              <th>deg</th>
+              <th>m</th>
+              <th>m</th>
+              <th>m</th>
+              <th>deg/30m</th>
+              <th>m</th>
+              <th>m</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+        <p class="meta-note">
+          XML con <code>nameWell</code> = Well 1 y <code>nameWellbore</code> = Borehole 1 (igual que la macro).
+          Archivo exportado en UTF-8 sin BOM.
+        </p>
       </div>
-      <div>
-        <label for="nameWellbore">nameWellbore</label>
-        <input id="nameWellbore" type="text" value="Borehole 1" />
+
+      <div class="side">
+        <button type="button" class="tile" id="btnExport" title="Export as xml">
+          <span aria-hidden="true">⬇ XML</span>
+          <strong>Export as xml</strong>
+        </button>
+        <button type="button" class="tile clear" id="btnClear" title="Clear the sheet">
+          <span aria-hidden="true">⌫</span>
+          <strong>Clear the sheet</strong>
+        </button>
+
+        <div class="instructions">
+          <p><strong>Instructions</strong></p>
+          <ol>
+            <li>
+              <strong>Copy</strong> from Excel or CSV and <strong>paste</strong> on
+              the table (full sheet is OK). Column order does not matter: headers
+              such as <em>md</em>, <em>incl</em>, <em>azi</em>, etc. are matched by
+              name; extra columns are ignored.
+            </li>
+            <li>Click on the <strong>Export as xml</strong> button.</li>
+            <li>You can rename the file and <strong>save</strong> it.</li>
+          </ol>
+          <p>
+            Note: You can <strong>clear</strong> the data by clicking on the eraser
+            button so you can keep using this Planned surveys generator.
+          </p>
+        </div>
       </div>
     </div>
-
-    <p class="hint" style="margin-top: 1rem">
-      Pega desde Excel las columnas <strong>B–J</strong> (md … dispEw) o edita la tabla.
-    </p>
-    <label for="paste">Pegar desde Excel</label>
-    <textarea
-      id="paste"
-      placeholder="Selecciona filas en Excel (B4:J…) → Copiar → Pegar aquí"
-    ></textarea>
-    <div class="actions">
-      <button type="button" id="btnPaste" class="secondary">Cargar pegado en tabla</button>
-      <button type="button" id="btnRow">+ Fila</button>
-    </div>
-
-    <div style="overflow-x: auto">
-      <table id="dataTable">
-        <thead>
-          <tr>
-            <th>md (m)</th>
-            <th>incl (deg)</th>
-            <th>azi (deg)</th>
-            <th>tvd (m)</th>
-            <th>mdDelta (m)</th>
-            <th>vertSect (m)</th>
-            <th>dls (deg/30m)</th>
-            <th>dispNs (m)</th>
-            <th>dispEw (m)</th>
-          </tr>
-        </thead>
-        <tbody id="tbody"></tbody>
-      </table>
-    </div>
-
-    <div class="actions">
-      <button type="button" id="btnGenerate">Generar XML</button>
-      <button type="button" id="btnDownload" class="ghost">Descargar Planned_surveys_.xml</button>
-    </div>
-
-    <label for="output">XML</label>
-    <textarea id="output" readonly spellcheck="false"></textarea>
-
-    <p class="note">
-      Para publicar una URL pública sin Azure: sube la carpeta <code>web</code> a GitHub Pages,
-      Cloudflare Pages o Netlify (gratis). Ver README → «Hosting sin Azure».
-    </p>
 
     <script type="module">
       import {
         buildPlannedSurveysXml,
         parsePastedRows,
+        encodeUtf8NoBom,
+        DEFAULT_META,
       } from "./witsml.js";
 
       const cols = [
@@ -190,7 +187,7 @@
         "dispEw",
       ];
       const tbody = document.getElementById("tbody");
-      const output = document.getElementById("output");
+      const EMPTY_ROWS = 25;
 
       function addRow(values = {}) {
         const tr = document.createElement("tr");
@@ -198,11 +195,18 @@
           const td = document.createElement("td");
           const input = document.createElement("input");
           input.dataset.col = col;
+          input.type = "text";
+          input.autocomplete = "off";
           input.value = values[col] ?? "";
           td.appendChild(input);
           tr.appendChild(td);
         }
         tbody.appendChild(tr);
+      }
+
+      function clearSheet() {
+        tbody.innerHTML = "";
+        for (let i = 0; i < EMPTY_ROWS; i++) addRow();
       }
 
       function readStations() {
@@ -219,55 +223,49 @@
         return stations;
       }
 
-      function generate() {
-        const stations = readStations();
-        if (!stations.length) {
-          alert("Agrega al menos una fila de datos (equivalente a fila 4 del Excel).");
-          return;
-        }
-        const xml = buildPlannedSurveysXml(stations, {
-          nameWell: document.getElementById("nameWell").value.trim() || "Well 1",
-          nameWellbore:
-            document.getElementById("nameWellbore").value.trim() || "Borehole 1",
-        });
-        output.value = xml;
-        return xml;
-      }
-
-      document.getElementById("btnRow").addEventListener("click", () => addRow());
-      document.getElementById("btnPaste").addEventListener("click", () => {
-        const text = document.getElementById("paste").value;
+      function fillFromPaste(text) {
         const stations = parsePastedRows(text);
-        if (!stations.length) {
-          alert("No se detectaron filas. Pega columnas B–J desde Excel.");
-          return;
-        }
+        if (!stations.length) return false;
         tbody.innerHTML = "";
         stations.forEach((s) => addRow(s));
-      });
-      document.getElementById("btnGenerate").addEventListener("click", generate);
-      document.getElementById("btnDownload").addEventListener("click", () => {
-        const xml = output.value || generate();
-        if (!xml) return;
-        const blob = new Blob([xml], { type: "application/xml;charset=utf-8" });
+        const used = stations.length;
+        for (let i = used; i < EMPTY_ROWS; i++) addRow();
+        return true;
+      }
+
+      function exportXml() {
+        const stations = readStations();
+        if (!stations.length) {
+          alert("Pega o ingresa filas de survey (con cabeceras o columnas B–J).");
+          return;
+        }
+        const xml = buildPlannedSurveysXml(stations, DEFAULT_META);
+        const bytes = encodeUtf8NoBom(xml);
+        const blob = new Blob([bytes], {
+          type: "application/xml;charset=utf-8",
+        });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = "Planned_surveys_.xml";
         a.click();
         URL.revokeObjectURL(a.href);
+      }
+
+      tbody.addEventListener("paste", (e) => {
+        const text = e.clipboardData?.getData("text/plain");
+        if (!text?.includes("\t") && !text?.includes("\n")) return;
+        e.preventDefault();
+        if (!fillFromPaste(text)) {
+          alert(
+            "No se detectaron filas de survey. Incluye cabeceras (md, incl, …) o columnas B–J."
+          );
+        }
       });
 
-      addRow({
-        md: "0",
-        incl: "0",
-        azi: "0",
-        tvd: "0",
-        mdDelta: "N/A",
-        vertSect: "0",
-        dls: "N/A",
-        dispNs: "0",
-        dispEw: "0",
-      });
+      document.getElementById("btnExport").addEventListener("click", exportXml);
+      document.getElementById("btnClear").addEventListener("click", clearSheet);
+
+      clearSheet();
     </script>
   </body>
 </html>
