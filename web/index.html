@@ -1,248 +1,318 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Planned surveys generator</title>
     <style>
       :root {
-        font-family: "Segoe UI", system-ui, sans-serif;
-        font-size: 14px;
-        color: #000;
+        --slb-panel: #9fadcd;
+        --slb-panel-hover: #8f9ebe;
+        --text: #55585e;
+        font-family: Aptos, "Segoe UI", Arial, sans-serif;
+        font-size: 12px;
+        color: var(--text);
         background: #fff;
       }
-      body {
-        margin: 1rem 1.25rem 2rem;
-      }
-      .layout {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 1.5rem;
-        align-items: flex-start;
-      }
-      table {
-        border-collapse: collapse;
-        background: #fff;
-      }
-      th,
-      td {
-        border: 1px solid #b4b4b4;
-        padding: 4px 8px;
-        text-align: center;
-        min-width: 4.5rem;
-      }
-      thead tr:first-child th {
-        background: #217346;
-        color: #fff;
-        font-weight: 600;
-      }
-      thead tr.units th {
-        background: #e2efda;
-        color: #333;
-        font-weight: 500;
-        font-size: 0.85rem;
-      }
-      tbody td {
-        padding: 0;
-      }
-      tbody input {
-        width: 100%;
-        min-width: 4rem;
-        border: none;
-        padding: 6px 8px;
-        text-align: center;
-        font: inherit;
+      * {
         box-sizing: border-box;
       }
-      tbody input:focus {
-        outline: 2px solid #217346;
-        outline-offset: -2px;
+      body {
+        margin: 0;
+        padding: 20px 28px 32px;
+        min-width: 960px;
       }
-      .side {
-        max-width: 280px;
+      .top-bar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-bottom: 28px;
       }
-      .tile {
+      .top-actions {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .action-wrap {
         display: flex;
         flex-direction: column;
         align-items: center;
-        justify-content: center;
-        width: 140px;
-        height: 110px;
-        margin-bottom: 1rem;
-        border: 1px solid #b4b4b4;
-        background: #f9f9f9;
+        width: 88px;
+      }
+      .action-label {
+        font-size: 12px;
+        color: var(--text);
+        text-align: center;
+        line-height: 1.2;
+        margin-bottom: 4px;
+        min-height: 26px;
+      }
+      .action-btn {
+        width: 72px;
+        height: 72px;
+        border: none;
+        border-radius: 10px;
+        background: var(--slb-panel);
         cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .action-btn:hover {
+        background: var(--slb-panel-hover);
+      }
+      .action-btn svg {
+        width: 40px;
+        height: 40px;
+      }
+      #btnExport {
+        background: #fff;
+        border: 1px solid var(--slb-panel);
+      }
+      #btnExport:hover {
+        background: #f6f8fc;
+      }
+      .icon-export,
+      .icon-clear {
+        display: block;
+        width: 44px;
+        height: 44px;
+        background-color: var(--slb-panel);
+        mask: center / contain no-repeat;
+        -webkit-mask: center / contain no-repeat;
+      }
+      .icon-export {
+        mask-image: url("icons/export-as-xml.png");
+        -webkit-mask-image: url("icons/export-as-xml.png");
+      }
+      .icon-clear {
+        mask-image: url("icons/clear-sheet.png");
+        -webkit-mask-image: url("icons/clear-sheet.png");
+      }
+      #btnClear {
+        background: #fff;
+        border: 1px solid var(--slb-panel);
+      }
+      #btnClear:hover {
+        background: #f6f8fc;
+      }
+      .logo {
+        height: 48px;
+        width: auto;
+        max-width: 180px;
+        object-fit: contain;
+        margin-left: 8px;
+        align-self: center;
+      }
+      .section-title {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      #pasteArea {
+        width: 100%;
+        min-height: 36px;
+        height: 36px;
+        resize: vertical;
+        border: 1px solid #9fadcd;
+        padding: 8px 10px;
         font: inherit;
-        color: inherit;
+        color: var(--text);
+        margin-bottom: 28px;
       }
-      .tile:hover {
-        background: #eef6ff;
-        border-color: #0078d4;
+      #pasteArea:focus {
+        outline: 2px solid var(--slb-panel);
+        outline-offset: 1px;
       }
-      .tile strong {
-        margin-top: 0.5rem;
-        font-size: 0.9rem;
+      .preview-wrap {
+        width: 100%;
       }
-      .tile.clear {
-        color: #333;
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
       }
-      .instructions {
-        font-size: 0.9rem;
-        line-height: 1.5;
-        color: #333;
+      th,
+      td {
+        border: 1px solid #9fadcd;
+        text-align: center;
+        padding: 6px 4px;
+        font-size: 12px;
+        color: var(--text);
       }
-      .instructions ol {
-        padding-left: 1.2rem;
+      thead th {
+        background: var(--slb-panel);
+        color: var(--text);
+        font-weight: 600;
       }
-      .meta-note {
-        font-size: 0.8rem;
-        color: #666;
-        margin-top: 1rem;
+      thead tr.units th {
+        font-weight: 500;
+      }
+      thead tr.mapping th {
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--text);
+        line-height: 1.25;
+        padding: 4px;
+        word-break: break-word;
+        background: var(--slb-panel);
+      }
+      thead tr.mapping th.unmapped {
+        color: #a33;
+        background: #e8d4d4;
+      }
+      tbody td {
+        background: #fff;
+        height: 28px;
+      }
+      tbody tr.placeholder td {
+        color: transparent;
       }
     </style>
   </head>
   <body>
-    <div class="layout">
-      <div>
-        <table id="dataTable">
-          <thead>
-            <tr>
-              <th>md</th>
-              <th>incl</th>
-              <th>azi</th>
-              <th>tvd</th>
-              <th>mdDelta</th>
-              <th>vertSect</th>
-              <th>dls</th>
-              <th>dispNs</th>
-              <th>dispEw</th>
-            </tr>
-            <tr class="units">
-              <th>m</th>
-              <th>deg</th>
-              <th>deg</th>
-              <th>m</th>
-              <th>m</th>
-              <th>m</th>
-              <th>deg/30m</th>
-              <th>m</th>
-              <th>m</th>
-            </tr>
-          </thead>
-          <tbody id="tbody"></tbody>
-        </table>
-        <p class="meta-note">
-          XML con <code>nameWell</code> = Well 1 y <code>nameWellbore</code> = Borehole 1 (igual que la macro).
-          Archivo exportado en UTF-8 sin BOM.
-        </p>
-      </div>
-
-      <div class="side">
-        <button type="button" class="tile" id="btnExport" title="Export as xml">
-          <span aria-hidden="true">⬇ XML</span>
-          <strong>Export as xml</strong>
-        </button>
-        <button type="button" class="tile clear" id="btnClear" title="Clear the sheet">
-          <span aria-hidden="true">⌫</span>
-          <strong>Clear the sheet</strong>
-        </button>
-
-        <div class="instructions">
-          <p><strong>Instructions</strong></p>
-          <ol>
-            <li>
-              <strong>Copy</strong> from Excel or CSV and <strong>paste</strong> on
-              the table (full sheet is OK). Column order does not matter: headers
-              such as <em>md</em>, <em>incl</em>, <em>azi</em>, etc. are matched by
-              name; extra columns are ignored (see
-              <a href="column-aliases.md">column-aliases.md</a>).
-            </li>
-            <li>Click on the <strong>Export as xml</strong> button.</li>
-            <li>You can rename the file and <strong>save</strong> it.</li>
-          </ol>
-          <p>
-            Note: You can <strong>clear</strong> the data by clicking on the eraser
-            button so you can keep using this Planned surveys generator.
-          </p>
+    <header class="top-bar">
+      <div class="top-actions">
+        <div class="action-wrap">
+          <span class="action-label">Export as xml</span>
+          <button type="button" class="action-btn" id="btnExport" title="Export as xml">
+            <span class="icon-export" aria-hidden="true"></span>
+          </button>
+        </div>
+        <div class="action-wrap">
+          <span class="action-label">Clear the sheet</span>
+          <button type="button" class="action-btn" id="btnClear" title="Clear the sheet">
+            <span class="icon-clear" aria-hidden="true"></span>
+          </button>
         </div>
       </div>
-    </div>
+      <img class="logo" src="slb-logo.png" width="160" height="48" alt="SLB" />
+    </header>
+
+    <section>
+      <h2 class="section-title">Paste the columns here</h2>
+      <textarea
+        id="pasteArea"
+        rows="1"
+        spellcheck="false"
+        placeholder=""
+        aria-label="Paste the columns here"
+      ></textarea>
+    </section>
+
+    <section class="preview-wrap">
+      <h2 class="section-title">Preview in csv</h2>
+      <table id="previewTable">
+        <thead>
+          <tr id="headerNames">
+            <th>md</th>
+            <th>incl</th>
+            <th>azi</th>
+            <th>tvd</th>
+            <th>mdDelta</th>
+            <th>vertSect</th>
+            <th>dls</th>
+            <th>dispNs</th>
+            <th>dispEw</th>
+          </tr>
+          <tr class="units">
+            <th>m</th>
+            <th>deg</th>
+            <th>deg</th>
+            <th>m</th>
+            <th>m</th>
+            <th>m</th>
+            <th>deg/30m</th>
+            <th>m</th>
+            <th>m</th>
+          </tr>
+          <tr class="mapping" id="mappingRow"></tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </section>
 
     <script type="module">
       import {
         buildPlannedSurveysXml,
-        parsePastedRows,
+        parsePastedSurvey,
         encodeUtf8NoBom,
         DEFAULT_META,
+        STATION_FIELDS,
       } from "./witsml.js";
 
-      const cols = [
-        "md",
-        "incl",
-        "azi",
-        "tvd",
-        "mdDelta",
-        "vertSect",
-        "dls",
-        "dispNs",
-        "dispEw",
-      ];
-      const tbody = document.getElementById("tbody");
-      const EMPTY_ROWS = 25;
+      const pasteArea = document.getElementById("pasteArea");
+      const previewBody = document.getElementById("previewBody");
+      const mappingRow = document.getElementById("mappingRow");
 
-      function addRow(values = {}) {
-        const tr = document.createElement("tr");
-        for (const col of cols) {
-          const td = document.createElement("td");
-          const input = document.createElement("input");
-          input.dataset.col = col;
-          input.type = "text";
-          input.autocomplete = "off";
-          input.value = values[col] ?? "";
-          td.appendChild(input);
-          tr.appendChild(td);
+      const PREVIEW_ROWS = 12;
+      let currentStations = [];
+
+      function renderMappingRow(sourceLabels) {
+        mappingRow.innerHTML = "";
+        for (const field of STATION_FIELDS) {
+          const th = document.createElement("th");
+          const label = sourceLabels[field] ?? "—";
+          th.textContent = label === "—" ? "—" : `← ${label}`;
+          if (label === "—") th.classList.add("unmapped");
+          th.title =
+            label === "—"
+              ? "No column matched for this field"
+              : `Source column: ${label}`;
+          mappingRow.appendChild(th);
         }
-        tbody.appendChild(tr);
       }
 
-      function clearSheet() {
-        tbody.innerHTML = "";
-        for (let i = 0; i < EMPTY_ROWS; i++) addRow();
-      }
-
-      function readStations() {
-        const stations = [];
-        for (const tr of tbody.querySelectorAll("tr")) {
-          const station = {};
-          let empty = true;
-          for (const input of tr.querySelectorAll("input")) {
-            station[input.dataset.col] = input.value.trim();
-            if (input.value.trim() !== "") empty = false;
+      function renderPreview(stations, sourceLabels) {
+        currentStations = stations;
+        renderMappingRow(sourceLabels);
+        previewBody.innerHTML = "";
+        const total = Math.max(PREVIEW_ROWS, stations.length);
+        for (let i = 0; i < total; i++) {
+          const tr = document.createElement("tr");
+          if (i >= stations.length) tr.classList.add("placeholder");
+          for (const field of STATION_FIELDS) {
+            const td = document.createElement("td");
+            td.textContent = stations[i]?.[field] ?? "";
+            tr.appendChild(td);
           }
-          if (!empty) stations.push(station);
+          previewBody.appendChild(tr);
         }
-        return stations;
       }
 
-      function fillFromPaste(text) {
-        const stations = parsePastedRows(text);
-        if (!stations.length) return false;
-        tbody.innerHTML = "";
-        stations.forEach((s) => addRow(s));
-        const used = stations.length;
-        for (let i = used; i < EMPTY_ROWS; i++) addRow();
-        return true;
+      function clearAll() {
+        pasteArea.value = "";
+        currentStations = [];
+        renderPreview([], Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"])));
+      }
+
+      function applyPaste() {
+        const text = pasteArea.value.trim();
+        if (!text) {
+          clearAll();
+          return;
+        }
+        const { stations, sourceLabels } = parsePastedSurvey(text);
+        if (!stations.length) {
+          renderPreview([], sourceLabels);
+          return;
+        }
+        renderPreview(stations, sourceLabels);
       }
 
       function exportXml() {
-        const stations = readStations();
-        if (!stations.length) {
-          alert("Pega o ingresa filas de survey (con cabeceras o columnas B–J).");
+        if (!currentStations.length) {
+          applyPaste();
+        }
+        if (!currentStations.length) {
+          alert("Paste survey data with headers or columns B–J.");
           return;
         }
-        const xml = buildPlannedSurveysXml(stations, DEFAULT_META);
-        const bytes = encodeUtf8NoBom(xml);
-        const blob = new Blob([bytes], {
+        const xml = buildPlannedSurveysXml(currentStations, DEFAULT_META);
+        const blob = new Blob([encodeUtf8NoBom(xml)], {
           type: "application/xml;charset=utf-8",
         });
         const a = document.createElement("a");
@@ -252,21 +322,15 @@
         URL.revokeObjectURL(a.href);
       }
 
-      tbody.addEventListener("paste", (e) => {
-        const text = e.clipboardData?.getData("text/plain");
-        if (!text?.includes("\t") && !text?.includes("\n")) return;
-        e.preventDefault();
-        if (!fillFromPaste(text)) {
-          alert(
-            "No se detectaron filas de survey. Incluye cabeceras (md, incl, …) o columnas B–J."
-          );
-        }
+      pasteArea.addEventListener("paste", () => {
+        setTimeout(applyPaste, 0);
       });
+      pasteArea.addEventListener("input", applyPaste);
 
       document.getElementById("btnExport").addEventListener("click", exportXml);
-      document.getElementById("btnClear").addEventListener("click", clearSheet);
+      document.getElementById("btnClear").addEventListener("click", clearAll);
 
-      clearSheet();
+      clearAll();
     </script>
   </body>
 </html>

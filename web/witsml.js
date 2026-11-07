@@ -324,21 +324,56 @@ function inferFirstNumericColumn(row) {
   return row.findIndex((c) => /^-?\d/.test(String(c).trim()) || String(c).trim().toUpperCase() === "N/A");
 }
 
+function excelColumnLetter(index) {
+  let n = index + 1;
+  let s = "";
+  while (n > 0) {
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+
+function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
+  /** @type {Record<string, string>} */
+  const labels = {};
+  for (const field of STATION_FIELDS) {
+    const idx = columnMap[field];
+    if (idx === undefined) {
+      labels[field] = "—";
+      continue;
+    }
+    if (mode === "header" && headerRowIndex >= 0) {
+      const raw = rows[headerRowIndex][idx] ?? "";
+      labels[field] = raw.trim() !== "" ? raw.trim() : `Col ${excelColumnLetter(idx)}`;
+    } else {
+      labels[field] = `Col ${excelColumnLetter(idx)} (position)`;
+    }
+  }
+  return labels;
+}
+
 /**
  * Interpreta pegado desde Excel/CSV: columnas desordenadas y columnas extra.
- * Busca cabeceras por nombre en las primeras filas; si no hay, usa bloque B–J contiguo.
+ * @returns {{ stations: object[], sourceLabels: Record<string,string>, mode: string }}
  */
-export function parsePastedRows(text) {
+export function parsePastedSurvey(text) {
   const rows = splitPastedGrid(text);
-  if (!rows.length) return [];
+  if (!rows.length) {
+    return { stations: [], sourceLabels: {}, mode: "empty" };
+  }
 
   let dataStart = 0;
+  let headerRowIndex = -1;
   /** @type {Record<string, number>} */
   let columnMap = {};
+  let mode = "header";
 
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
     if (!rowLooksLikeHeader(rows[i])) continue;
     columnMap = buildColumnMap(rows[i]);
+    headerRowIndex = i;
     dataStart = i + 1;
     if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart])) {
       dataStart += 1;
@@ -347,14 +382,16 @@ export function parsePastedRows(text) {
   }
 
   if (columnMap.md === undefined) {
+    mode = "positional";
     const legacy = findLegacyStartIndex(rows);
     if (legacy.headerRow) {
       columnMap = legacy.map;
-      const headerIdx = rows.findIndex((row) => rowLooksLikeHeader(row));
-      dataStart = headerIdx + 1;
+      headerRowIndex = rows.findIndex((row) => rowLooksLikeHeader(row));
+      dataStart = headerRowIndex + 1;
       if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart])) {
         dataStart += 1;
       }
+      mode = "header";
     } else {
       let blockStart = legacy.mdIdx;
       for (const row of rows.slice(0, 15)) {
@@ -366,6 +403,7 @@ export function parsePastedRows(text) {
         }
       }
       columnMap = legacyColumnMap(blockStart, 9);
+      headerRowIndex = -1;
       dataStart = 0;
       while (
         dataStart < rows.length &&
@@ -389,5 +427,16 @@ export function parsePastedRows(text) {
     stations.push(station);
   }
 
-  return stations;
+  const sourceLabels = sourceLabelsForMap(
+    rows,
+    columnMap,
+    headerRowIndex,
+    mode === "header" && headerRowIndex >= 0 ? "header" : "positional"
+  );
+
+  return { stations, sourceLabels, mode, columnMap };
+}
+
+export function parsePastedRows(text) {
+  return parsePastedSurvey(text).stations;
 }

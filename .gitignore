@@ -4,3 +4,5 @@ __pycache__/
 .python_packages/
 deploy.zip
 .azure/
+tools/gs/
+web/brand/*.eps
