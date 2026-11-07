@@ -17,13 +17,26 @@ En **Cursor**:
 
 Si no aparece “Publish to GitHub”, instala [Git for Windows](https://git-scm.com/download/win), reinicia Cursor y repite.
 
-## 2. Activar GitHub Pages
+## 2. Activar GitHub Pages (obligatorio antes del deploy)
 
-En el navegador, en **github.com** → tu repo:
+En el navegador: **https://github.com/perlaferbpv/planned-surveys-api/settings/pages**
 
-1. **Settings** → **Pages** (menú izquierdo).
-2. **Build and deployment** → **Source**: elige **GitHub Actions** (no “Deploy from branch”).
-3. Tras el primer push a `main`, entra a la pestaña **Actions** y verifica que el workflow **GitHub Pages (convertidor web)** termine en verde.
+1. **Build and deployment** → **Source**: elige **GitHub Actions** (no “Deploy from a branch”).
+2. Si no ves la opción, guarda la página una vez; GitHub a veces provisiona Pages en la primera visita.
+
+Si el workflow falla con **404** / *Ensure GitHub Pages has been enabled*:
+
+1. Confirma que el repo sea **Public** (Settings → General → Danger zone). En cuenta gratis, Pages en repos privados suele fallar.
+2. **Settings → Pages → Source = GitHub Actions** (guarda la página).
+3. Haz **push** del último `github-pages.yml` (incluye `configure-pages`) y **Re-run** el workflow.
+
+**Plan B (rama `gh-pages`):**
+
+1. **Actions** → **GitHub Pages (rama gh-pages)** → **Run workflow**.
+2. **Settings → Pages → Source: Deploy from a branch** → Branch **`gh-pages`** → **`/(root)`**.
+3. URL: `https://perlaferbpv.github.io/planned-surveys-api/`
+
+3. Tras el push a `main`, verifica que el job termine en verde.
 
 ## 3. Tu URL pública
 
