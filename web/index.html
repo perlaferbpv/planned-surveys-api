@@ -3,9 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Planned surveys generator</title>
+    <title>Planned surveys to xml (WITSML)</title>
     <style>
       :root {
+        --slb-brand: #0014dc;
         --slb-panel: #9fadcd;
         --slb-panel-hover: #8f9ebe;
         --text: #55585e;
@@ -25,9 +26,25 @@
       .top-bar {
         display: flex;
         align-items: flex-start;
-        justify-content: flex-end;
-        gap: 12px;
+        justify-content: space-between;
+        gap: 16px;
         margin-bottom: 28px;
+      }
+      .page-title {
+        margin: 0;
+        flex: 1;
+        font-family: Aptos, "Segoe UI", Arial, sans-serif;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--slb-brand);
+        line-height: 1.35;
+        padding-top: 4px;
+      }
+      .top-bar-right {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        flex-shrink: 0;
       }
       .top-actions {
         display: flex;
@@ -67,19 +84,21 @@
         width: 40px;
         height: 40px;
       }
-      #btnExport {
+      #btnExport,
+      #btnClear {
         background: #fff;
-        border: 1px solid var(--slb-panel);
+        border: 1px solid var(--slb-brand);
       }
-      #btnExport:hover {
-        background: #f6f8fc;
+      #btnExport:hover,
+      #btnClear:hover {
+        background: #f0f3ff;
       }
       .icon-export,
       .icon-clear {
         display: block;
         width: 44px;
         height: 44px;
-        background-color: var(--slb-panel);
+        background-color: var(--slb-brand);
         mask: center / contain no-repeat;
         -webkit-mask: center / contain no-repeat;
       }
@@ -91,17 +110,10 @@
         mask-image: url("icons/clear-sheet.png");
         -webkit-mask-image: url("icons/clear-sheet.png");
       }
-      #btnClear {
-        background: #fff;
-        border: 1px solid var(--slb-panel);
-      }
-      #btnClear:hover {
-        background: #f6f8fc;
-      }
       .logo {
-        height: 48px;
+        height: 72px;
         width: auto;
-        max-width: 180px;
+        max-width: 270px;
         object-fit: contain;
         margin-left: 8px;
         align-self: center;
@@ -143,13 +155,11 @@
         font-size: 12px;
         color: var(--text);
       }
-      thead th {
+      thead tr#headerNames th,
+      thead tr.units th {
         background: var(--slb-panel);
         color: var(--text);
-        font-weight: 600;
-      }
-      thead tr.units th {
-        font-weight: 500;
+        font-weight: 700;
       }
       thead tr.mapping th {
         font-size: 12px;
@@ -175,21 +185,24 @@
   </head>
   <body>
     <header class="top-bar">
-      <div class="top-actions">
-        <div class="action-wrap">
-          <span class="action-label">Export as xml</span>
-          <button type="button" class="action-btn" id="btnExport" title="Export as xml">
-            <span class="icon-export" aria-hidden="true"></span>
-          </button>
+      <h1 class="page-title">Planned surveys to xml (WITSML)</h1>
+      <div class="top-bar-right">
+        <div class="top-actions">
+          <div class="action-wrap">
+            <span class="action-label">Export as xml</span>
+            <button type="button" class="action-btn" id="btnExport" title="Export as xml">
+              <span class="icon-export" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="action-wrap">
+            <span class="action-label">Clear the sheet</span>
+            <button type="button" class="action-btn" id="btnClear" title="Clear the sheet">
+              <span class="icon-clear" aria-hidden="true"></span>
+            </button>
+          </div>
         </div>
-        <div class="action-wrap">
-          <span class="action-label">Clear the sheet</span>
-          <button type="button" class="action-btn" id="btnClear" title="Clear the sheet">
-            <span class="icon-clear" aria-hidden="true"></span>
-          </button>
-        </div>
+        <img class="logo" src="slb-logo.png" width="240" height="72" alt="SLB" />
       </div>
-      <img class="logo" src="slb-logo.png" width="160" height="48" alt="SLB" />
     </header>
 
     <section>
