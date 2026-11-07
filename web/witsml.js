@@ -18,18 +18,124 @@ export const STATION_FIELDS = [
   "dispEw",
 ];
 
-/** Nombres de cabecera aceptados (minúsculas, sin espacios). */
+/**
+ * Cabeceras reconocidas (ver también column-aliases.md).
+ * Orden importa: el primer alias que coincida gana.
+ */
 const HEADER_ALIASES = {
-  md: ["md", "measureddepth", "depthmd", "mdm"],
-  incl: ["incl", "inclination", "inc", "deviation", "incldeg"],
-  azi: ["azi", "azimuth", "az", "aziang", "heading"],
-  tvd: ["tvd", "trueverticaldepth", "tvdm"],
-  mdDelta: ["mddelta", "mdelta", "mdchange", "dmd", "mddel"],
-  vertSect: ["vertsect", "verticalsection", "vsect", "vertsection", "vs"],
-  dls: ["dls", "dogleg", "doglegseverity", "dl"],
-  dispNs: ["dispns", "ns", "displacementns", "northing", "deltans", "mdispns"],
-  dispEw: ["dispew", "ew", "displacementew", "easting", "deltaew", "mdispew"],
+  md: [
+    "md",
+    "mdm",
+    "deph",
+    "depthmd",
+    "measureddepth",
+    "measureddepthm",
+    "measureddepthft",
+    "measureddepthmetres",
+    "measureddepthmeters",
+    "holedepth",
+    "surveydepth",
+    "depth",
+  ],
+  incl: [
+    "incl",
+    "inc",
+    "inclination",
+    "incldeg",
+    "incdeg",
+    "deviation",
+    "holeinclination",
+    "holeincl",
+    "cinc",
+    "dev",
+  ],
+  azi: [
+    "azi",
+    "az",
+    "azim",
+    "azimuth",
+    "azimuthdeg",
+    "aziang",
+    "heading",
+    "holeazimuth",
+    "holeazi",
+    "hazi",
+    "azimgrid",
+  ],
+  tvd: ["tvd", "tvdm", "trueverticaldepth", "truevertdepth", "vertdepth"],
+  mdDelta: ["mddelta", "deltamd", "mdelta", "dmd", "mddel", "mdchange", "mddiff"],
+  vertSect: ["vertsect", "vsec", "verticalsection", "vertsection", "vertsec", "vs"],
+  dls: [
+    "dls",
+    "dl",
+    "dogleg",
+    "doglegseverity",
+    "dls30",
+    "dlsdeg30m",
+    "dlsdeg30ft",
+  ],
+  dispNs: [
+    "dispns",
+    "ns",
+    "displacementns",
+    "deltans",
+    "mdispns",
+    "north",
+    "northing",
+    "northingm",
+    "coordns",
+    "ycoord",
+  ],
+  dispEw: [
+    "dispew",
+    "ew",
+    "displacementew",
+    "deltaew",
+    "mdispew",
+    "east",
+    "easting",
+    "eastingm",
+    "coordew",
+    "xcoord",
+  ],
 };
+
+/** Cabeceras que no se mapean a campos de survey (se ignoran al buscar columna). */
+const IGNORED_HEADER_TOKENS = new Set([
+  "tvdss",
+  "deltatvd",
+  "closure",
+  "latitude",
+  "longitude",
+  "lat",
+  "long",
+  "lon",
+  "comments",
+  "comment",
+  "description",
+  "survey",
+  "reportdate",
+  "endmd",
+  "holesize",
+  "casingsize",
+  "vendor",
+  "part",
+  "mdfrom",
+  "mdto",
+  "eoufreq",
+  "expectedmaxinclination",
+]);
+
+/** Coincidencia por prefijo cuando el nombre trae sufijos o unidades pegadas. */
+const HEADER_PREFIX_TO_FIELD = [
+  ["measureddepth", "md"],
+  ["deltamd", "mdDelta"],
+  ["verticalsection", "vertSect"],
+  ["holeinclination", "incl"],
+  ["holeincl", "incl"],
+  ["holeazimuth", "azi"],
+  ["trueverticaldepth", "tvd"],
+];
 
 const UNIT_TOKENS = new Set([
   "m",
@@ -76,12 +182,12 @@ export function buildPlannedSurveysXml(stations, meta = {}) {
     const type = index === 0 ? "tie in point" : "unknown";
     lines.push(`    <trajectoryStation uid="${uid}">`);
     lines.push(`      <typeTrajStation>${type}</typeTrajStation>`);
-    lines.push(`      <md uom="m">${normalizeForXml(md)}</md>`;
+    lines.push(`      <md uom="m">${normalizeForXml(md)}</md>`);
     lines.push(`      <tvd uom="m">${normalizeForXml(station.tvd)}</tvd>`);
     lines.push(`      <incl uom="deg">${normalizeForXml(station.incl)}</incl>`);
-    lines.push(`      <azi uom="deg">${normalizeForXml(station.azi)}</azi>`;
-    lines.push(`      <dispNs uom="m">${normalizeForXml(station.dispNs)}</dispNs>`;
-    lines.push(`      <dispEw uom="m">${normalizeForXml(station.dispEw)}</dispEw>`;
+    lines.push(`      <azi uom="deg">${normalizeForXml(station.azi)}</azi>`);
+    lines.push(`      <dispNs uom="m">${normalizeForXml(station.dispNs)}</dispNs>`);
+    lines.push(`      <dispEw uom="m">${normalizeForXml(station.dispEw)}</dispEw>`);
     lines.push(`      <vertSect uom="m">${normalizeForXml(station.vertSect)}</vertSect>`);
     lines.push(`      <dls uom="deg/30m">${normalizeForXml(station.dls)}</dls>`);
     lines.push(`      <mdDelta uom="m">${normalizeForXml(station.mdDelta)}</mdDelta>`);
@@ -105,15 +211,27 @@ export function encodeUtf8NoBom(text) {
 function normalizeHeaderToken(cell) {
   if (!cell) return "";
   let s = String(cell).trim().toLowerCase();
+  s = s.replace(/°/g, "");
   s = s.replace(/\(.*?\)/g, "");
   s = s.replace(/[\s_\-./\\]+/g, "");
   return s;
 }
 
+function detectDelimiter(text) {
+  const first = text.split(/\r?\n/).find((line) => line.trim() !== "") ?? "";
+  const scores = [
+    ["\t", (first.match(/\t/g) ?? []).length],
+    [";", (first.match(/;/g) ?? []).length],
+    [",", (first.match(/,/g) ?? []).length],
+  ];
+  scores.sort((a, b) => b[1] - a[1]);
+  return scores[0][1] > 0 ? scores[0][0] : "\t";
+}
+
 function splitPastedGrid(text) {
   const trimmed = text.trim();
   if (!trimmed) return [];
-  const delimiter = trimmed.includes("\t") ? "\t" : ",";
+  const delimiter = detectDelimiter(trimmed);
   return trimmed
     .split(/\r?\n/)
     .map((line) => line.split(delimiter).map((c) => c.trim()));
@@ -121,8 +239,12 @@ function splitPastedGrid(text) {
 
 function fieldForHeaderToken(token) {
   if (!token) return null;
+  if (IGNORED_HEADER_TOKENS.has(token)) return null;
   for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
     if (aliases.includes(token)) return field;
+  }
+  for (const [prefix, field] of HEADER_PREFIX_TO_FIELD) {
+    if (token === prefix || token.startsWith(prefix)) return field;
   }
   return null;
 }
