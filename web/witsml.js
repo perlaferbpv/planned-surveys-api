@@ -104,6 +104,7 @@ const HEADER_ALIASES = {
 const IGNORED_HEADER_TOKENS = new Set([
   "tvdss",
   "deltatvd",
+  "ahd",
   "closure",
   "latitude",
   "longitude",
@@ -208,24 +209,41 @@ export function encodeUtf8NoBom(text) {
   return new TextEncoder().encode(text);
 }
 
+function cleanCell(cell) {
+  if (cell == null) return "";
+  let s = String(cell).trim();
+  s = s.replace(/^["']+|["']+$/g, "");
+  s = s.replace(/\r?\n/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
 function normalizeHeaderToken(cell) {
   if (!cell) return "";
-  let s = String(cell).trim().toLowerCase();
+  let s = cleanCell(cell).toLowerCase();
   s = s.replace(/°/g, "");
   s = s.replace(/\(.*?\)/g, "");
-  s = s.replace(/[\s_\-./\\]+/g, "");
+  s = s.replace(/[\s_\-./\\"]+/g, "");
   return s;
 }
 
 function detectDelimiter(text) {
-  const first = text.split(/\r?\n/).find((line) => line.trim() !== "") ?? "";
-  const scores = [
-    ["\t", (first.match(/\t/g) ?? []).length],
-    [";", (first.match(/;/g) ?? []).length],
-    [",", (first.match(/,/g) ?? []).length],
-  ];
-  scores.sort((a, b) => b[1] - a[1]);
-  return scores[0][1] > 0 ? scores[0][0] : "\t";
+  const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "").slice(0, 12);
+  const scores = { "\t": 0, ";": 0, ",": 0 };
+  for (const line of lines) {
+    scores["\t"] += (line.match(/\t/g) ?? []).length;
+    scores[";"] += (line.match(/;/g) ?? []).length;
+    scores[","] += (line.match(/,/g) ?? []).length;
+  }
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return best[1] > 0 ? best[0] : "\t";
+}
+
+function splitLine(line, delimiter) {
+  const parts = line.split(delimiter).map(cleanCell);
+  if (delimiter === "\t" || parts.length > 1) return parts;
+  const spaced = line.trim().split(/\s{2,}/).map(cleanCell);
+  return spaced.length > 1 ? spaced : parts;
 }
 
 function splitPastedGrid(text) {
@@ -234,7 +252,67 @@ function splitPastedGrid(text) {
   const delimiter = detectDelimiter(trimmed);
   return trimmed
     .split(/\r?\n/)
-    .map((line) => line.split(delimiter).map((c) => c.trim()));
+    .map((line) => (line.trim() === "" ? [] : splitLine(line, delimiter)));
+}
+
+function isNumericSurveyMd(value) {
+  const s = cleanCell(value).replace(",", ".");
+  if (!s || s.toUpperCase() === "N/A") return false;
+  return /^-?\d/.test(s);
+}
+
+function rowLooksLikeLabelRow(cells) {
+  let hits = 0;
+  for (const cell of cells) {
+    const cleaned = cleanCell(cell);
+    if (!cleaned) continue;
+    const token = normalizeHeaderToken(cleaned);
+    if (fieldForHeaderToken(token) || IGNORED_HEADER_TOKENS.has(token)) hits++;
+    if (UNIT_TOKENS.has(cleaned.toLowerCase()) || /^\([^)]*\)$/.test(cleaned)) hits++;
+  }
+  return hits >= 2;
+}
+
+function isValidSurveyDataRow(cells, columnMap) {
+  const station = stationFromRow(cells, columnMap);
+  const md = cleanCell(station.md);
+  if (!isNumericSurveyMd(md)) return false;
+  if (rowLooksLikeLabelRow(cells)) return false;
+  return true;
+}
+
+function tryBuildHeaderFromRows(rows, index) {
+  const a = rows[index].map(cleanCell);
+  let map = buildColumnMap(a);
+  if (map.md !== undefined && countMappedFields(map) >= 3) {
+    let dataStart = index + 1;
+    if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart].map(cleanCell))) {
+      dataStart += 1;
+    }
+    return { map, headerRowIndex: index, dataStart };
+  }
+
+  if (index + 1 >= rows.length) return null;
+
+  const b = rows[index + 1].map(cleanCell);
+  if (rowLooksLikeHeader(a) && rowLooksLikeUnits(b)) {
+    map = buildColumnMap(a);
+    if (map.md !== undefined) {
+      return { map, headerRowIndex: index, dataStart: index + 2 };
+    }
+  }
+
+  const combined = a.map((c, j) => `${c} ${b[j] ?? ""}`.trim());
+  map = buildColumnMap(combined);
+  if (map.md !== undefined && countMappedFields(map) >= 3) {
+    let dataStart = index + 2;
+    if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart].map(cleanCell))) {
+      dataStart += 1;
+    }
+    return { map, headerRowIndex: index, dataStart };
+  }
+
+  return null;
 }
 
 function fieldForHeaderToken(token) {
@@ -271,8 +349,11 @@ function rowLooksLikeHeader(cells) {
 
 function rowLooksLikeUnits(cells) {
   if (!cells.length) return false;
-  const hits = cells.filter((c) => UNIT_TOKENS.has(String(c).trim().toLowerCase()));
-  return hits.length >= Math.min(4, Math.ceil(cells.length * 0.4));
+  const hits = cells.filter((c) => {
+    const t = cleanCell(c).toLowerCase();
+    return UNIT_TOKENS.has(t) || /^\([^)]*\)$/.test(cleanCell(c));
+  });
+  return hits.length >= Math.min(3, Math.ceil(cells.length * 0.35));
 }
 
 function rowLooksLikeData(cells) {
@@ -288,7 +369,7 @@ function stationFromRow(cells, columnMap) {
   const station = {};
   for (const field of STATION_FIELDS) {
     const idx = columnMap[field];
-    station[field] = idx !== undefined ? (cells[idx] ?? "").trim() : "";
+    station[field] = idx !== undefined ? cleanCell(cells[idx]) : "";
   }
   return station;
 }
@@ -345,8 +426,8 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
       continue;
     }
     if (mode === "header" && headerRowIndex >= 0) {
-      const raw = rows[headerRowIndex][idx] ?? "";
-      labels[field] = raw.trim() !== "" ? raw.trim() : `Col ${excelColumnLetter(idx)}`;
+      const raw = cleanCell(rows[headerRowIndex][idx] ?? "");
+      labels[field] = raw !== "" ? raw : `Col ${excelColumnLetter(idx)}`;
     } else {
       labels[field] = `Col ${excelColumnLetter(idx)} (position)`;
     }
@@ -370,32 +451,35 @@ export function parsePastedSurvey(text) {
   let columnMap = {};
   let mode = "header";
 
-  for (let i = 0; i < Math.min(rows.length, 12); i++) {
-    if (!rowLooksLikeHeader(rows[i])) continue;
-    columnMap = buildColumnMap(rows[i]);
-    headerRowIndex = i;
-    dataStart = i + 1;
-    if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart])) {
-      dataStart += 1;
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    const block = tryBuildHeaderFromRows(rows, i);
+    if (block) {
+      columnMap = block.map;
+      headerRowIndex = block.headerRowIndex;
+      dataStart = block.dataStart;
+      mode = "header";
+      break;
     }
-    break;
   }
 
   if (columnMap.md === undefined) {
     mode = "positional";
-    const legacy = findLegacyStartIndex(rows);
+    const cleanedRows = rows.map((r) => r.map(cleanCell));
+    const legacy = findLegacyStartIndex(cleanedRows);
     if (legacy.headerRow) {
       columnMap = legacy.map;
-      headerRowIndex = rows.findIndex((row) => rowLooksLikeHeader(row));
+      headerRowIndex = cleanedRows.findIndex((row) => rowLooksLikeHeader(row));
       dataStart = headerRowIndex + 1;
-      if (dataStart < rows.length && rowLooksLikeUnits(rows[dataStart])) {
+      if (dataStart < rows.length && rowLooksLikeUnits(cleanedRows[dataStart])) {
         dataStart += 1;
       }
       mode = "header";
     } else {
       let blockStart = legacy.mdIdx;
-      for (const row of rows.slice(0, 15)) {
-        if (rowLooksLikeHeader(row) || rowLooksLikeUnits(row)) continue;
+      for (const row of cleanedRows.slice(0, 20)) {
+        if (rowLooksLikeHeader(row) || rowLooksLikeUnits(row) || rowLooksLikeLabelRow(row)) {
+          continue;
+        }
         const idx = inferFirstNumericColumn(row);
         if (idx >= 0) {
           blockStart = idx;
@@ -405,10 +489,17 @@ export function parsePastedSurvey(text) {
       columnMap = legacyColumnMap(blockStart, 9);
       headerRowIndex = -1;
       dataStart = 0;
-      while (
-        dataStart < rows.length &&
-        (rowLooksLikeHeader(rows[dataStart]) || rowLooksLikeUnits(rows[dataStart]))
-      ) {
+      while (dataStart < rows.length) {
+        const row = cleanedRows[dataStart];
+        if (
+          rowLooksLikeHeader(row) ||
+          rowLooksLikeUnits(row) ||
+          rowLooksLikeLabelRow(row)
+        ) {
+          dataStart += 1;
+          continue;
+        }
+        if (isValidSurveyDataRow(row, columnMap)) break;
         dataStart += 1;
       }
     }
@@ -416,13 +507,15 @@ export function parsePastedSurvey(text) {
 
   const stations = [];
   for (let r = dataStart; r < rows.length; r++) {
-    const cells = rows[r];
+    const cells = rows[r].map(cleanCell);
     if (cells.every((c) => c === "")) continue;
-    if (rowLooksLikeHeader(cells) || rowLooksLikeUnits(cells)) continue;
+    if (rowLooksLikeHeader(cells) || rowLooksLikeUnits(cells) || rowLooksLikeLabelRow(cells)) {
+      continue;
+    }
+    if (!isValidSurveyDataRow(cells, columnMap)) continue;
 
     const station = stationFromRow(cells, columnMap);
     if (isEmptyStation(station)) continue;
-    if (station.md === "" && station.incl === "" && station.tvd === "") continue;
 
     stations.push(station);
   }
