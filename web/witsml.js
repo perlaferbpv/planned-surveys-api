@@ -18,6 +18,37 @@ export const STATION_FIELDS = [
   "dispEw",
 ];
 
+/** Layout típico reporte geodésico (12 columnas). */
+const GEODETIC_12_LABELS = {
+  md: "MD",
+  incl: "Incl",
+  azi: "Azim",
+  tvd: "TVD",
+  mdDelta: "DeltaMD",
+  vertSect: "VSEC",
+  dls: "DLS",
+  dispNs: "NS",
+  dispEw: "EW",
+};
+
+function geodetic12ColumnMap(offset = 0) {
+  return {
+    md: offset + 0,
+    incl: offset + 1,
+    azi: offset + 2,
+    tvd: offset + 3,
+    vertSect: offset + 5,
+    dispNs: offset + 7,
+    dispEw: offset + 8,
+    mdDelta: offset + 9,
+    dls: offset + 11,
+  };
+}
+
+function maxColumnCount(rows) {
+  return rows.reduce((max, row) => Math.max(max, row.length), 0);
+}
+
 /**
  * Cabeceras reconocidas (ver también column-aliases.md).
  * Orden importa: el primer alias que coincida gana.
@@ -239,11 +270,26 @@ function detectDelimiter(text) {
   return best[1] > 0 ? best[0] : "\t";
 }
 
+function looksLikeNumericDataLine(line) {
+  const tokens = line.trim().split(/\s+/).map(cleanCell);
+  if (tokens.length < 9) return false;
+  const numeric = tokens.filter((t) => {
+    if (!t) return true;
+    const s = t.replace(",", ".");
+    return /^-?\d/.test(s) || s.toUpperCase() === "N/A";
+  });
+  return numeric.length >= tokens.length * 0.85;
+}
+
 function splitLine(line, delimiter) {
   const parts = line.split(delimiter).map(cleanCell);
-  if (delimiter === "\t" || parts.length > 1) return parts;
+  if (parts.length > 1) return parts;
   const spaced = line.trim().split(/\s{2,}/).map(cleanCell);
-  return spaced.length > 1 ? spaced : parts;
+  if (spaced.length > 1) return spaced;
+  if (looksLikeNumericDataLine(line)) {
+    return line.trim().split(/\s+/).map(cleanCell);
+  }
+  return parts;
 }
 
 function splitPastedGrid(text) {
@@ -425,6 +471,10 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
       labels[field] = "—";
       continue;
     }
+    if (mode === "geodetic-12") {
+      labels[field] = GEODETIC_12_LABELS[field] ?? `Col ${excelColumnLetter(idx)}`;
+      continue;
+    }
     if (mode === "header" && headerRowIndex >= 0) {
       const raw = cleanCell(rows[headerRowIndex][idx] ?? "");
       labels[field] = raw !== "" ? raw : `Col ${excelColumnLetter(idx)}`;
@@ -433,6 +483,38 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
     }
   }
   return labels;
+}
+
+function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
+  const maxCols = maxColumnCount(rows);
+  if (maxCols < 12) return { columnMap, mode, headerRowIndex };
+
+  if (headerRowIndex >= 0) {
+    const headerMap = buildColumnMap(rows[headerRowIndex].map(cleanCell));
+    if (
+      headerMap.md !== undefined &&
+      headerMap.mdDelta === 9 &&
+      countMappedFields(headerMap) >= 6
+    ) {
+      return { columnMap: headerMap, mode: "header", headerRowIndex };
+    }
+  }
+
+  const offset = columnMap.md ?? 0;
+  const wrongBToJ =
+    mode === "positional" &&
+    columnMap.mdDelta === offset + 4 &&
+    columnMap.dls === offset + 6;
+
+  if (wrongBToJ || mode === "positional" || columnMap.mdDelta === offset + 4) {
+    return {
+      columnMap: geodetic12ColumnMap(offset),
+      mode: headerRowIndex >= 0 ? "header" : "geodetic-12",
+      headerRowIndex,
+    };
+  }
+
+  return { columnMap, mode, headerRowIndex };
 }
 
 /**
@@ -486,7 +568,11 @@ export function parsePastedSurvey(text) {
           break;
         }
       }
-      columnMap = legacyColumnMap(blockStart, 9);
+      columnMap =
+        maxColumnCount(cleanedRows) >= 12
+          ? geodetic12ColumnMap(blockStart)
+          : legacyColumnMap(blockStart, 9);
+      if (maxColumnCount(cleanedRows) >= 12) mode = "geodetic-12";
       headerRowIndex = -1;
       dataStart = 0;
       while (dataStart < rows.length) {
@@ -505,6 +591,13 @@ export function parsePastedSurvey(text) {
     }
   }
 
+  ({ columnMap, mode, headerRowIndex } = applyGeodetic12LayoutIfNeeded(
+    rows,
+    columnMap,
+    headerRowIndex,
+    mode
+  ));
+
   const stations = [];
   for (let r = dataStart; r < rows.length; r++) {
     const cells = rows[r].map(cleanCell);
@@ -520,12 +613,14 @@ export function parsePastedSurvey(text) {
     stations.push(station);
   }
 
-  const sourceLabels = sourceLabelsForMap(
-    rows,
-    columnMap,
-    headerRowIndex,
-    mode === "header" && headerRowIndex >= 0 ? "header" : "positional"
-  );
+  const labelMode =
+    mode === "geodetic-12"
+      ? "geodetic-12"
+      : mode === "header" && headerRowIndex >= 0
+        ? "header"
+        : "positional";
+
+  const sourceLabels = sourceLabelsForMap(rows, columnMap, headerRowIndex, labelMode);
 
   return { stations, sourceLabels, mode, columnMap };
 }

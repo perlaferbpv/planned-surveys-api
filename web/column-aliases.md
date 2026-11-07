@@ -18,9 +18,20 @@ El convertidor busca **nombres en la fila de cabecera** (no importa el orden ni 
 
 ## Reportes geodésicos (p. ej. *Geodetic Interpolated Report*)
 
-Suele incluir columnas extra. Se usan estas si están presentes:
+Suele incluir **12 columnas**. Sin cabeceras, el orden fijo es:
 
-- **MD**, **Incl**, **Azim**, **TVD**, **DeltaMD**, **VSEC**, **DLS**, **NS**, **EW**
+| Col | Campo XML |
+|-----|-----------|
+| 1–4 | MD, Incl, Azim, TVD |
+| 5 | TVDSS (ignorada) |
+| 6 | VSEC → vertSect |
+| 7 | AHD (ignorada) |
+| 8–9 | NS, EW |
+| 10 | DeltaMD → mdDelta |
+| 11 | DeltaTVD (ignorada) |
+| 12 | DLS |
+
+Con cabeceras por nombre se usa **DeltaMD**, **VSEC**, **DLS**, **NS**, **EW**, etc.
 
 Se **ignoran** (no van al XML planificado): TVDSS, DeltaTVD, Closure, Latitude, Longitude, comentarios, hole size, MD From/To, etc.
 
