@@ -45,6 +45,21 @@ function geodetic12ColumnMap(offset = 0) {
   };
 }
 
+/** Reporte 12 cols con Closure: DeltaMD~6, VSEC~7, DLS~9, NS/EW~10–11. */
+function closureReport12ColumnMap(offset = 0) {
+  return {
+    md: offset + 0,
+    incl: offset + 1,
+    azi: offset + 2,
+    tvd: offset + 3,
+    mdDelta: offset + 6,
+    vertSect: offset + 7,
+    dls: offset + 9,
+    dispNs: offset + 10,
+    dispEw: offset + 11,
+  };
+}
+
 function maxColumnCount(rows) {
   return rows.reduce((max, row) => Math.max(max, row.length), 0);
 }
@@ -92,6 +107,7 @@ const HEADER_ALIASES = {
     "holeazi",
     "hazi",
     "azimgrid",
+    "azimuthgrid",
   ],
   tvd: ["tvd", "tvdm", "trueverticaldepth", "truevertdepth", "vertdepth"],
   mdDelta: ["mddelta", "deltamd", "mdelta", "dmd", "mddel", "mdchange", "mddiff"],
@@ -290,6 +306,15 @@ function normalizeHeaderToken(cell) {
   return s;
 }
 
+function isIgnoredHeaderToken(token) {
+  if (!token) return false;
+  if (IGNORED_HEADER_TOKENS.has(token)) return true;
+  for (const ign of IGNORED_HEADER_TOKENS) {
+    if (token.startsWith(ign)) return true;
+  }
+  return false;
+}
+
 function detectDelimiter(text) {
   const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "").slice(0, 12);
   const scores = { "\t": 0, ";": 0, ",": 0 };
@@ -300,6 +325,16 @@ function detectDelimiter(text) {
   }
   const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
   return best[1] > 0 ? best[0] : "\t";
+}
+
+function collapseKnownHeaderPhrases(line) {
+  return line
+    .replace(/\bAzim\s+Grid\b/gi, "AzimGrid")
+    .replace(/\bAzimuth\s+Grid\b/gi, "AzimuthGrid")
+    .replace(/\bDelta\s+MD\b/gi, "DeltaMD")
+    .replace(/\bTrue\s+Vertical\s+Depth\b/gi, "TVD")
+    .replace(/\bMeasured\s+Depth\b/gi, "MD")
+    .replace(/\bVertical\s+Section\b/gi, "VSEC");
 }
 
 function looksLikeNumericDataLine(line) {
@@ -321,7 +356,16 @@ function splitLine(line, delimiter) {
   if (looksLikeNumericDataLine(line)) {
     return line.trim().split(/\s+/).map(cleanCell);
   }
-  return parts;
+  const headerLine = collapseKnownHeaderPhrases(line);
+  const words = headerLine.trim().split(/\s+/).map(cleanCell);
+  if (words.length >= 3) {
+    const headerMap = buildColumnMap(words);
+    if (headerMap.md !== undefined && countMappedFields(headerMap) >= 3) {
+      return words;
+    }
+    if (rowLooksLikeUnits(words)) return words;
+  }
+  return parts.length ? parts : words;
 }
 
 function splitPastedGrid(text) {
@@ -345,7 +389,7 @@ function rowLooksLikeLabelRow(cells) {
     const cleaned = cleanCell(cell);
     if (!cleaned) continue;
     const token = normalizeHeaderToken(cleaned);
-    if (fieldForHeaderToken(token) || IGNORED_HEADER_TOKENS.has(token)) hits++;
+    if (fieldForHeaderToken(token) || isIgnoredHeaderToken(token)) hits++;
     if (UNIT_TOKENS.has(cleaned.toLowerCase()) || /^\([^)]*\)$/.test(cleaned)) hits++;
   }
   return hits >= 2;
@@ -395,7 +439,8 @@ function tryBuildHeaderFromRows(rows, index) {
 
 function fieldForHeaderToken(token) {
   if (!token) return null;
-  if (IGNORED_HEADER_TOKENS.has(token)) return null;
+  if (isIgnoredHeaderToken(token)) return null;
+  if (token.startsWith("clos")) return null;
 
   for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
     if (token === alias) return field;
@@ -404,16 +449,19 @@ function fieldForHeaderToken(token) {
     if (token === prefix || token.startsWith(prefix)) return field;
   }
 
+  if (token.startsWith("dls") || token.includes("dogleg")) return "dls";
+
   for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
-    if (alias.length >= 4 && token.includes(alias)) return field;
-    if (token.length >= 4 && alias.includes(token)) return field;
+    if (alias.length < 5) continue;
+    if (token.includes(alias)) return field;
+    if (token.length >= 5 && alias.length >= 5 && alias.includes(token)) return field;
   }
 
-  if (token.length >= 4) {
+  if (token.length >= 5) {
     let bestField = null;
     let bestDist = 2;
     for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
-      if (Math.abs(token.length - alias.length) > 2) continue;
+      if (alias.length < 4 || Math.abs(token.length - alias.length) > 2) continue;
       const dist = levenshtein(token, alias);
       if (dist < bestDist) {
         bestDist = dist;
@@ -542,6 +590,44 @@ function headerMapLooksUsable(map) {
   return map.md !== undefined && countMappedFields(map) >= 6;
 }
 
+function parseNumericCell(value) {
+  const s = cleanCell(value).replace(",", ".");
+  if (!s || s.toUpperCase() === "N/A") return NaN;
+  const n = Number(s);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function scoreTwelveColumnMap(rows, map) {
+  let score = 0;
+  for (const row of rows) {
+    const cells = row.map(cleanCell);
+    if (!rowLooksLikeData(cells) || cells.length < 10) continue;
+    const md = parseNumericCell(cells[map.md]);
+    const mdDelta = parseNumericCell(cells[map.mdDelta]);
+    const dls = parseNumericCell(cells[map.dls]);
+    if (Number.isFinite(md) && md > 5 && Number.isFinite(mdDelta)) {
+      if (Math.abs(mdDelta - md) <= Math.max(3, md * 0.15)) score += 4;
+    }
+    if (Number.isFinite(dls) && Math.abs(dls) < 15) score += 1;
+    break;
+  }
+  return score;
+}
+
+function pickTwelveColumnPositionalMap(rows, offset = 0) {
+  const candidates = [closureReport12ColumnMap(offset), geodetic12ColumnMap(offset)];
+  let best = candidates[0];
+  let bestScore = -1;
+  for (const map of candidates) {
+    const score = scoreTwelveColumnMap(rows, map);
+    if (score > bestScore) {
+      bestScore = score;
+      best = map;
+    }
+  }
+  return best;
+}
+
 function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
   const maxCols = maxColumnCount(rows);
 
@@ -561,13 +647,13 @@ function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
   const offset = columnMap.md ?? 0;
   const wrongSequentialBToJ =
     columnMap.mdDelta === offset + 4 && columnMap.dls === offset + 6;
-  const needsGeodetic12 =
+  const needsTwelveColLayout =
     mode !== "header" &&
     (wrongSequentialBToJ || countMappedFields(columnMap) < 6);
 
-  if (needsGeodetic12) {
+  if (needsTwelveColLayout) {
     return {
-      columnMap: geodetic12ColumnMap(offset),
+      columnMap: pickTwelveColumnPositionalMap(rows, offset),
       mode: "geodetic-12",
       headerRowIndex: -1,
     };
@@ -640,7 +726,7 @@ export function parsePastedSurvey(text) {
       }
       columnMap =
         maxColumnCount(cleanedRows) >= 12
-          ? geodetic12ColumnMap(blockStart)
+          ? pickTwelveColumnPositionalMap(cleanedRows, blockStart)
           : legacyColumnMap(blockStart, 9);
       if (maxColumnCount(cleanedRows) >= 12) mode = "geodetic-12";
       headerRowIndex = -1;
