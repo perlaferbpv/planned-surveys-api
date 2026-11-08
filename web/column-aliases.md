@@ -31,9 +31,13 @@ Suele incluir **12 columnas**. Sin cabeceras, el orden fijo es:
 | 11 | DeltaTVD (ignorada) |
 | 12 | DLS |
 
-Con cabeceras por nombre se usa **DeltaMD**, **VSEC**, **DLS**, **NS**, **EW**, etc.
+Con **cabeceras por nombre** el orden puede cambiar; columnas extra no cuentan para el XML.
 
-Se **ignoran** (no van al XML planificado): TVDSS, DeltaTVD, Closure, Latitude, Longitude, comentarios, hole size, MD From/To, etc.
+Otro layout frecuente (12 cols): **MD, Incl, Azim Grid, TVD, TVDSS, TVDLL, DeltaMD, VSEC, Closure, DLS, NS, EW** → se mapean los 9 campos; **Closure**, **TVDSS** y **TVDLL** se ignoran.
+
+Coincidencias: nombres exactos, variantes (`Azim Grid`, `Delta MD`) y similitud leve en la cabecera (typo de una letra).
+
+Se **ignoran** (no van al XML planificado): TVDSS, TVDLL, DeltaTVD, Closure, Latitude, Longitude, comentarios, hole size, MD From/To, etc.
 
 ## CSV con otro idioma o nombre
 

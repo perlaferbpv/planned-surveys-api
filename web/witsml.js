@@ -134,6 +134,8 @@ const HEADER_ALIASES = {
 /** Cabeceras que no se mapean a campos de survey (se ignoran al buscar columna). */
 const IGNORED_HEADER_TOKENS = new Set([
   "tvdss",
+  "tvdl",
+  "tvdll",
   "deltatvd",
   "ahd",
   "closure",
@@ -168,6 +170,36 @@ const HEADER_PREFIX_TO_FIELD = [
   ["holeazimuth", "azi"],
   ["trueverticaldepth", "tvd"],
 ];
+
+/** Aliases largos primero para que "deltamd" gane sobre "md". */
+const SORTED_HEADER_ALIAS_ENTRIES = (() => {
+  /** @type {{ field: string, alias: string }[]} */
+  const entries = [];
+  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+    for (const alias of aliases) entries.push({ field, alias });
+  }
+  entries.sort((a, b) => b.alias.length - a.alias.length);
+  return entries;
+})();
+
+function levenshtein(a, b) {
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  const row = Array.from({ length: n + 1 }, (_, j) => j);
+  for (let i = 1; i <= m; i++) {
+    let prev = row[0];
+    row[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const tmp = row[j];
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + cost);
+      prev = tmp;
+    }
+  }
+  return row[n];
+}
 
 const UNIT_TOKENS = new Set([
   "m",
@@ -364,12 +396,33 @@ function tryBuildHeaderFromRows(rows, index) {
 function fieldForHeaderToken(token) {
   if (!token) return null;
   if (IGNORED_HEADER_TOKENS.has(token)) return null;
-  for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
-    if (aliases.includes(token)) return field;
+
+  for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
+    if (token === alias) return field;
   }
   for (const [prefix, field] of HEADER_PREFIX_TO_FIELD) {
     if (token === prefix || token.startsWith(prefix)) return field;
   }
+
+  for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
+    if (alias.length >= 4 && token.includes(alias)) return field;
+    if (token.length >= 4 && alias.includes(token)) return field;
+  }
+
+  if (token.length >= 4) {
+    let bestField = null;
+    let bestDist = 2;
+    for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
+      if (Math.abs(token.length - alias.length) > 2) continue;
+      const dist = levenshtein(token, alias);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestField = field;
+      }
+    }
+    if (bestField) return bestField;
+  }
+
   return null;
 }
 
@@ -485,32 +538,38 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
   return labels;
 }
 
+function headerMapLooksUsable(map) {
+  return map.md !== undefined && countMappedFields(map) >= 6;
+}
+
 function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
   const maxCols = maxColumnCount(rows);
-  if (maxCols < 12) return { columnMap, mode, headerRowIndex };
 
   if (headerRowIndex >= 0) {
     const headerMap = buildColumnMap(rows[headerRowIndex].map(cleanCell));
-    if (
-      headerMap.md !== undefined &&
-      headerMap.mdDelta === 9 &&
-      countMappedFields(headerMap) >= 6
-    ) {
+    if (headerMapLooksUsable(headerMap)) {
       return { columnMap: headerMap, mode: "header", headerRowIndex };
     }
   }
 
-  const offset = columnMap.md ?? 0;
-  const wrongBToJ =
-    mode === "positional" &&
-    columnMap.mdDelta === offset + 4 &&
-    columnMap.dls === offset + 6;
+  if (mode === "header" && headerMapLooksUsable(columnMap)) {
+    return { columnMap, mode, headerRowIndex };
+  }
 
-  if (wrongBToJ || mode === "positional" || columnMap.mdDelta === offset + 4) {
+  if (maxCols < 12) return { columnMap, mode, headerRowIndex };
+
+  const offset = columnMap.md ?? 0;
+  const wrongSequentialBToJ =
+    columnMap.mdDelta === offset + 4 && columnMap.dls === offset + 6;
+  const needsGeodetic12 =
+    mode !== "header" &&
+    (wrongSequentialBToJ || countMappedFields(columnMap) < 6);
+
+  if (needsGeodetic12) {
     return {
       columnMap: geodetic12ColumnMap(offset),
-      mode: headerRowIndex >= 0 ? "header" : "geodetic-12",
-      headerRowIndex,
+      mode: "geodetic-12",
+      headerRowIndex: -1,
     };
   }
 
@@ -533,15 +592,26 @@ export function parsePastedSurvey(text) {
   let columnMap = {};
   let mode = "header";
 
+  /** @type {{ map: Record<string, number>, headerRowIndex: number, dataStart: number } | null} */
+  let bestHeaderBlock = null;
   for (let i = 0; i < Math.min(rows.length, 20); i++) {
     const block = tryBuildHeaderFromRows(rows, i);
-    if (block) {
-      columnMap = block.map;
-      headerRowIndex = block.headerRowIndex;
-      dataStart = block.dataStart;
-      mode = "header";
-      break;
+    if (!block || block.map.md === undefined) continue;
+    const score = countMappedFields(block.map);
+    if (
+      !bestHeaderBlock ||
+      score > countMappedFields(bestHeaderBlock.map) ||
+      (score === countMappedFields(bestHeaderBlock.map) && score >= 6)
+    ) {
+      bestHeaderBlock = block;
+      if (score >= 8) break;
     }
+  }
+  if (bestHeaderBlock && countMappedFields(bestHeaderBlock.map) >= 3) {
+    columnMap = bestHeaderBlock.map;
+    headerRowIndex = bestHeaderBlock.headerRowIndex;
+    dataStart = bestHeaderBlock.dataStart;
+    mode = "header";
   }
 
   if (columnMap.md === undefined) {
