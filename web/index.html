@@ -138,14 +138,6 @@
         mask-image: url("icons/clear-sheet.png");
         -webkit-mask-image: url("icons/clear-sheet.png");
       }
-      .logo {
-        height: 83px;
-        width: auto;
-        max-width: 311px;
-        object-fit: contain;
-        margin-left: 8px;
-        align-self: center;
-      }
       .section-title {
         color: var(--text);
         font-size: var(--label-size);
@@ -185,9 +177,10 @@
       }
       thead tr#headerNames th,
       thead tr.units th {
-        background: var(--slb-panel);
-        color: var(--text);
+        background: var(--slb-brand);
+        color: #fff;
         font-weight: 700;
+        border-color: var(--slb-brand);
       }
       thead tr.mapping th {
         font-size: 12px;
@@ -229,13 +222,6 @@
             </button>
           </div>
         </div>
-        <img
-          class="logo"
-          src="slb-logo-positive.png"
-          width="276"
-          height="83"
-          alt="SLB"
-        />
       </div>
     </header>
 
