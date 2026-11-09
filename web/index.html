@@ -195,12 +195,32 @@
         color: #a33;
         background: #e8d4d4;
       }
+      .section-hint {
+        margin: -4px 0 10px;
+        font-size: 12px;
+        color: var(--text);
+        line-height: 1.35;
+      }
       tbody td {
         background: #fff;
-        height: 28px;
+        min-height: 28px;
+        padding: 4px 4px;
+        vertical-align: middle;
       }
-      tbody tr.placeholder td {
-        color: transparent;
+      tbody td.editable-cell {
+        cursor: text;
+      }
+      tbody td.editable-cell:focus {
+        outline: 2px solid var(--slb-panel);
+        outline-offset: -2px;
+        background: #f8faff;
+      }
+      tbody tr.placeholder td:not(:focus) {
+        color: #c8ccd6;
+      }
+      thead tr.mapping th.manual-hint {
+        font-weight: 700;
+        color: var(--text);
       }
     </style>
   </head>
@@ -238,6 +258,10 @@
 
     <section class="preview-wrap">
       <h2 class="section-title">Preview in csv</h2>
+      <p class="section-hint">
+        Automatic: paste the full report above. Manual: click a column and paste values
+        from Excel (one field per column, same row order).
+      </p>
       <table id="previewTable">
         <thead>
           <tr id="headerNames">
@@ -283,65 +307,171 @@
 
       const PREVIEW_ROWS = 12;
       let currentStations = [];
+      /** @type {"auto" | "manual"} */
+      let dataEntryMode = "auto";
 
-      function renderMappingRow(sourceLabels) {
+      function splitColumnValues(text) {
+        const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        const values = [];
+        for (const line of lines) {
+          const parts = line.split("\t").map((s) => s.trim());
+          if (parts.length > 1) values.push(...parts);
+          else if (line.trim() !== "") values.push(line.trim());
+        }
+        return values;
+      }
+
+      function readStationsFromPreviewTable() {
+        const stations = [];
+        for (const tr of previewBody.querySelectorAll("tr")) {
+          /** @type {Record<string, string>} */
+          const station = {};
+          let hasMd = false;
+          for (const field of STATION_FIELDS) {
+            const td = tr.querySelector(`td[data-field="${field}"]`);
+            const v = (td?.textContent ?? "").trim();
+            station[field] = v;
+            if (field === "md" && v && /^-?\d/.test(v)) hasMd = true;
+          }
+          if (hasMd) stations.push(station);
+        }
+        return stations;
+      }
+
+      function syncFromTable() {
+        currentStations = readStationsFromPreviewTable();
+      }
+
+      function renderMappingRow(sourceLabels, mode = dataEntryMode) {
         mappingRow.innerHTML = "";
         for (const field of STATION_FIELDS) {
           const th = document.createElement("th");
-          const label = sourceLabels[field] ?? "—";
-          th.textContent = label === "—" ? "—" : `← ${label}`;
-          if (label === "—") th.classList.add("unmapped");
-          th.title =
-            label === "—"
-              ? "No column matched for this field"
-              : `Source column: ${label}`;
+          if (mode === "manual") {
+            th.textContent = "Manual";
+            th.classList.add("manual-hint");
+            th.title = "Values pasted or typed directly in this column";
+          } else {
+            const label = sourceLabels[field] ?? "—";
+            th.textContent = label === "—" ? "—" : `← ${label}`;
+            if (label === "—") th.classList.add("unmapped");
+            th.title =
+              label === "—"
+                ? "No column matched for this field"
+                : `Source column: ${label}`;
+          }
           mappingRow.appendChild(th);
         }
       }
 
-      function renderPreview(stations, sourceLabels) {
+      function fillColumnFromCell(startRowIndex, field, values) {
+        const rows = [...previewBody.querySelectorAll("tr")];
+        while (rows.length < startRowIndex + values.length) {
+          const tr = document.createElement("tr");
+          tr.appendChild(buildEditableRowCells());
+          previewBody.appendChild(tr);
+          rows.push(tr);
+        }
+        values.forEach((value, i) => {
+          const row = rows[startRowIndex + i];
+          if (!row) return;
+          row.classList.remove("placeholder");
+          const td = row.querySelector(`td[data-field="${field}"]`);
+          if (td) td.textContent = value;
+        });
+      }
+
+      function buildEditableRowCells() {
+        const frag = document.createDocumentFragment();
+        for (const field of STATION_FIELDS) {
+          const td = document.createElement("td");
+          td.classList.add("editable-cell");
+          td.contentEditable = "true";
+          td.dataset.field = field;
+          td.spellcheck = false;
+          td.setAttribute("role", "textbox");
+          td.title = `Paste or type ${field}`;
+          td.addEventListener("paste", onCellPaste);
+          td.addEventListener("input", onTableEdited);
+          td.addEventListener("blur", onTableEdited);
+          frag.appendChild(td);
+        }
+        return frag;
+      }
+
+      function onTableEdited() {
+        dataEntryMode = "manual";
+        syncFromTable();
+        renderMappingRow({}, "manual");
+      }
+
+      function onCellPaste(event) {
+        const text = event.clipboardData?.getData("text") ?? "";
+        if (!text.includes("\n") && !text.includes("\t") && !text.includes("\r")) {
+          return;
+        }
+        event.preventDefault();
+        const td = event.currentTarget;
+        const field = td.dataset.field;
+        const tr = td.closest("tr");
+        const rowIndex = [...previewBody.querySelectorAll("tr")].indexOf(tr);
+        fillColumnFromCell(rowIndex, field, splitColumnValues(text));
+        dataEntryMode = "manual";
+        syncFromTable();
+        renderMappingRow({}, "manual");
+      }
+
+      function renderPreview(stations, sourceLabels, mode = "auto") {
+        dataEntryMode = mode;
         currentStations = stations;
-        renderMappingRow(sourceLabels);
+        renderMappingRow(sourceLabels, mode);
         previewBody.innerHTML = "";
         const total = Math.max(PREVIEW_ROWS, stations.length);
         for (let i = 0; i < total; i++) {
           const tr = document.createElement("tr");
           if (i >= stations.length) tr.classList.add("placeholder");
+          tr.appendChild(buildEditableRowCells());
           for (const field of STATION_FIELDS) {
-            const td = document.createElement("td");
+            const td = tr.querySelector(`td[data-field="${field}"]`);
             td.textContent = stations[i]?.[field] ?? "";
-            tr.appendChild(td);
           }
           previewBody.appendChild(tr);
         }
+        if (mode === "auto") syncFromTable();
       }
 
       function clearAll() {
         pasteArea.value = "";
         currentStations = [];
-        renderPreview([], Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"])));
+        dataEntryMode = "auto";
+        renderPreview([], Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"])), "auto");
       }
 
       function applyPaste() {
         const text = pasteArea.value.trim();
         if (!text) {
+          if (dataEntryMode === "manual" && currentStations.length) return;
           clearAll();
           return;
         }
         const { stations, sourceLabels } = parsePastedSurvey(text);
         if (!stations.length) {
-          renderPreview([], sourceLabels);
+          if (dataEntryMode === "manual" && currentStations.length) return;
+          renderPreview([], sourceLabels, "auto");
           return;
         }
-        renderPreview(stations, sourceLabels);
+        renderPreview(stations, sourceLabels, "auto");
       }
 
       function exportXml() {
-        if (!currentStations.length) {
+        syncFromTable();
+        if (!currentStations.length && pasteArea.value.trim()) {
           applyPaste();
+          syncFromTable();
         }
         if (!currentStations.length) {
-          alert("Paste survey data with headers or columns B–J.");
+          alert(
+            "Paste survey data above for automatic mapping, or enter values in the preview table (md is required)."
+          );
           return;
         }
         const xml = buildPlannedSurveysXml(currentStations, DEFAULT_META);
