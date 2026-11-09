@@ -287,6 +287,7 @@
         buildPlannedSurveysXml,
         parsePastedSurvey,
         encodeUtf8NoBom,
+        formatStationDecimals,
         DEFAULT_META,
         STATION_FIELDS,
       } from "./witsml.js";
@@ -371,7 +372,7 @@
         const stations = [];
         for (const row of readFullTableGrid()) {
           const md = row.md;
-          if (md && /^-?\d/.test(md)) stations.push({ ...row });
+          if (md && /^-?\d/.test(md)) stations.push(formatStationDecimals(row));
         }
         return stations;
       }
@@ -591,7 +592,9 @@
           );
           return;
         }
-        const xml = buildPlannedSurveysXml(currentStations, DEFAULT_META);
+        const stations = currentStations.map((row) => formatStationDecimals(row));
+        currentStations = stations;
+        const xml = buildPlannedSurveysXml(stations, DEFAULT_META);
         const blob = new Blob([encodeUtf8NoBom(xml)], {
           type: "application/xml;charset=utf-8",
         });

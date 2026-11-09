@@ -251,10 +251,44 @@ const UNIT_TOKENS = new Set([
   "deg/100m",
 ]);
 
+/** Máximo de decimales en preview y XML (como la macro Excel). */
+export const MAX_DECIMAL_PLACES = 4;
+
+/** Número de survey: hasta 4 decimales, coma → punto, sin ceros finales extra. */
+export function formatSurveyDecimal(value) {
+  if (value === null || value === undefined) return "";
+  const s = String(value).trim();
+  if (s === "" || s.toUpperCase() === "N/A") return s;
+  const norm = s.replace(",", ".");
+  if (!/^-?\d/.test(norm)) return norm;
+  const n = Number(norm);
+  if (!Number.isFinite(n)) return norm;
+  const factor = 10 ** MAX_DECIMAL_PLACES;
+  const rounded = Math.round(n * factor) / factor;
+  let out = rounded.toFixed(MAX_DECIMAL_PLACES);
+  out = out.replace(/(\.\d*?)0+$/, "$1").replace(/\.$/, "");
+  if (out === "-0") return "0";
+  return out;
+}
+
+export function formatStationDecimals(station) {
+  /** @type {Record<string, string>} */
+  const out = { ...station };
+  for (const field of STATION_FIELDS) {
+    const v = out[field];
+    if (v !== "" && v != null) {
+      const f = formatSurveyDecimal(v);
+      if (/^-?\d/.test(String(f))) out[field] = f;
+    }
+  }
+  return out;
+}
+
 export function normalizeForXml(value) {
   if (value === null || value === undefined) return "-999.25";
   const s = String(value).trim();
   if (s === "" || s.toUpperCase() === "N/A") return "-999.25";
+  if (/^-?\d/.test(s.replace(",", "."))) return formatSurveyDecimal(s);
   return s.replace(",", ".");
 }
 
@@ -837,7 +871,7 @@ export function parsePastedSurvey(text) {
     const station = stationFromRow(cells, columnMap);
     if (isEmptyStation(station)) continue;
 
-    stations.push(station);
+    stations.push(formatStationDecimals(station));
   }
 
   const labelMode =
