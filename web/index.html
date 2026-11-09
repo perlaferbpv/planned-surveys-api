@@ -296,9 +296,19 @@
       const mappingRow = document.getElementById("mappingRow");
 
       const PREVIEW_ROWS = 12;
+      const MAX_HISTORY = 80;
       let currentStations = [];
+      /** @type {Record<string, string>} */
+      let currentSourceLabels = Object.fromEntries(
+        STATION_FIELDS.map((f) => [f, "—"])
+      );
       /** @type {"auto" | "manual"} */
       let dataEntryMode = "auto";
+      /** @type {object[]} */
+      let undoHistory = [];
+      let undoHistoryIndex = -1;
+      let isRestoringHistory = false;
+      let editHistoryTimer = 0;
 
       function parseClipboardGrid(text) {
         const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
@@ -342,21 +352,91 @@
         });
       }
 
-      function readStationsFromPreviewTable() {
-        const stations = [];
+      function readFullTableGrid() {
+        /** @type {Record<string, string>[]} */
+        const grid = [];
         for (const tr of previewBody.querySelectorAll("tr")) {
           /** @type {Record<string, string>} */
-          const station = {};
-          let hasMd = false;
+          const row = {};
           for (const field of STATION_FIELDS) {
             const td = tr.querySelector(`td[data-field="${field}"]`);
-            const v = (td?.textContent ?? "").trim();
-            station[field] = v;
-            if (field === "md" && v && /^-?\d/.test(v)) hasMd = true;
+            row[field] = (td?.textContent ?? "").trim();
           }
-          if (hasMd) stations.push(station);
+          grid.push(row);
+        }
+        return grid;
+      }
+
+      function readStationsFromPreviewTable() {
+        const stations = [];
+        for (const row of readFullTableGrid()) {
+          const md = row.md;
+          if (md && /^-?\d/.test(md)) stations.push({ ...row });
         }
         return stations;
+      }
+
+      function captureSnapshot() {
+        return {
+          pasteArea: pasteArea.value,
+          grid: readFullTableGrid(),
+          sourceLabels: { ...currentSourceLabels },
+          dataEntryMode,
+        };
+      }
+
+      function snapshotsEqual(a, b) {
+        return (
+          a.pasteArea === b.pasteArea &&
+          a.dataEntryMode === b.dataEntryMode &&
+          JSON.stringify(a.grid) === JSON.stringify(b.grid)
+        );
+      }
+
+      function commitHistory() {
+        if (isRestoringHistory) return;
+        const snapshot = captureSnapshot();
+        const current = undoHistory[undoHistoryIndex];
+        if (current && snapshotsEqual(current, snapshot)) return;
+        if (undoHistoryIndex < undoHistory.length - 1) {
+          undoHistory = undoHistory.slice(0, undoHistoryIndex + 1);
+        }
+        undoHistory.push(snapshot);
+        if (undoHistory.length > MAX_HISTORY) {
+          undoHistory.shift();
+        }
+        undoHistoryIndex = undoHistory.length - 1;
+      }
+
+      function restoreSnapshot(snapshot) {
+        isRestoringHistory = true;
+        pasteArea.value = snapshot.pasteArea;
+        dataEntryMode = snapshot.dataEntryMode;
+        currentSourceLabels = { ...snapshot.sourceLabels };
+        renderPreviewFromGrid(snapshot.grid, snapshot.sourceLabels, snapshot.dataEntryMode);
+        isRestoringHistory = false;
+      }
+
+      function undoEdit() {
+        if (undoHistoryIndex <= 0) return;
+        undoHistoryIndex -= 1;
+        restoreSnapshot(undoHistory[undoHistoryIndex]);
+      }
+
+      function redoEdit() {
+        if (undoHistoryIndex >= undoHistory.length - 1) return;
+        undoHistoryIndex += 1;
+        restoreSnapshot(undoHistory[undoHistoryIndex]);
+      }
+
+      function initHistory() {
+        undoHistory = [captureSnapshot()];
+        undoHistoryIndex = 0;
+      }
+
+      function scheduleCommitHistory() {
+        clearTimeout(editHistoryTimer);
+        editHistoryTimer = window.setTimeout(() => commitHistory(), 350);
       }
 
       function syncFromTable() {
@@ -406,6 +486,7 @@
         dataEntryMode = "manual";
         syncFromTable();
         renderMappingRow({}, "manual");
+        scheduleCommitHistory();
       }
 
       function onCellPaste(event) {
@@ -424,32 +505,46 @@
         dataEntryMode = "manual";
         syncFromTable();
         renderMappingRow({}, "manual");
+        commitHistory();
       }
 
-      function renderPreview(stations, sourceLabels, mode = "auto") {
+      function renderPreviewFromGrid(grid, sourceLabels, mode) {
         dataEntryMode = mode;
-        currentStations = stations;
+        currentSourceLabels = { ...sourceLabels };
         renderMappingRow(sourceLabels, mode);
         previewBody.innerHTML = "";
-        const total = Math.max(PREVIEW_ROWS, stations.length);
+        const total = Math.max(PREVIEW_ROWS, grid.length);
         for (let i = 0; i < total; i++) {
           const tr = document.createElement("tr");
-          if (i >= stations.length) tr.classList.add("placeholder");
+          const row = grid[i];
+          const isEmpty =
+            !row || STATION_FIELDS.every((field) => (row[field] ?? "") === "");
+          if (isEmpty) tr.classList.add("placeholder");
           tr.appendChild(buildEditableRowCells());
           for (const field of STATION_FIELDS) {
             const td = tr.querySelector(`td[data-field="${field}"]`);
-            td.textContent = stations[i]?.[field] ?? "";
+            td.textContent = row?.[field] ?? "";
           }
           previewBody.appendChild(tr);
         }
-        if (mode === "auto") syncFromTable();
+        syncFromTable();
+      }
+
+      function renderPreview(stations, sourceLabels, mode = "auto") {
+        const grid = stations.map((s) => ({ ...s }));
+        while (grid.length < PREVIEW_ROWS) {
+          grid.push(Object.fromEntries(STATION_FIELDS.map((f) => [f, ""])));
+        }
+        renderPreviewFromGrid(grid, sourceLabels, mode);
       }
 
       function clearAll() {
         pasteArea.value = "";
         currentStations = [];
         dataEntryMode = "auto";
-        renderPreview([], Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"])), "auto");
+        currentSourceLabels = Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"]));
+        renderPreview([], currentSourceLabels, "auto");
+        commitHistory();
       }
 
       function applyPaste() {
@@ -463,9 +558,11 @@
         if (!stations.length) {
           if (dataEntryMode === "manual" && currentStations.length) return;
           renderPreview([], sourceLabels, "auto");
+          commitHistory();
           return;
         }
         renderPreview(stations, sourceLabels, "auto");
+        commitHistory();
       }
 
       function exportXml() {
@@ -496,10 +593,26 @@
       });
       pasteArea.addEventListener("input", applyPaste);
 
+      document.addEventListener("keydown", (e) => {
+        const mod = e.ctrlKey || e.metaKey;
+        if (!mod) return;
+        const key = e.key.toLowerCase();
+        if (key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          undoEdit();
+          return;
+        }
+        if (key === "y" || (key === "z" && e.shiftKey)) {
+          e.preventDefault();
+          redoEdit();
+        }
+      });
+
       document.getElementById("btnExport").addEventListener("click", exportXml);
       document.getElementById("btnClear").addEventListener("click", clearAll);
 
       clearAll();
+      initHistory();
     </script>
   </body>
 </html>
