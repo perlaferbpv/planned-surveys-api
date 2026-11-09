@@ -33,6 +33,8 @@
         --slb-panel-hover: #8f9ebe;
         --text: #55585e;
         --label-size: 14px;
+        --radius: 10px;
+        --field-border: 1px solid var(--slb-panel);
         font-family: "SLB Sans", Aptos, "Segoe UI", Arial, sans-serif;
         font-size: 12px;
         color: var(--text);
@@ -97,7 +99,7 @@
         width: 72px;
         height: 72px;
         border: none;
-        border-radius: 10px;
+        border-radius: var(--radius);
         background: var(--slb-panel);
         cursor: pointer;
         display: flex;
@@ -149,18 +151,25 @@
         min-height: 36px;
         height: 36px;
         resize: vertical;
-        border: 1px solid #9fadcd;
+        border: var(--field-border);
+        border-radius: var(--radius);
         padding: 8px 10px;
         font: inherit;
         color: var(--text);
         margin-bottom: 28px;
+        background: #fff;
       }
       #pasteArea:focus {
-        outline: 2px solid var(--slb-panel);
-        outline-offset: 1px;
+        outline: none;
+        border-color: var(--slb-brand);
+        box-shadow: 0 0 0 2px rgba(0, 20, 220, 0.12);
       }
       .preview-wrap {
         width: 100%;
+        border: var(--field-border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: #fff;
       }
       table {
         width: 100%;
@@ -169,7 +178,7 @@
       }
       th,
       td {
-        border: 1px solid #9fadcd;
+        border: 1px solid var(--slb-panel);
         text-align: center;
         padding: 6px 4px;
         font-size: 12px;
@@ -192,8 +201,8 @@
         cursor: text;
       }
       tbody td.editable-cell:focus {
-        outline: 2px solid var(--slb-panel);
-        outline-offset: -2px;
+        outline: none;
+        box-shadow: inset 0 0 0 2px var(--slb-brand);
         background: #f8faff;
       }
       tbody tr.placeholder td:not(:focus) {
