@@ -49,7 +49,12 @@ Suele incluir **12 columnas**. Sin cabeceras, el orden fijo es:
 
 Con **cabeceras por nombre** el orden puede cambiar; columnas extra no cuentan para el XML.
 
-Otro layout frecuente (12 cols): **MD, Incl, Azim Grid, TVD, TVDSS, TVDLL, DeltaMD, VSEC, Closure, DLS, NS, EW** → se mapean los 9 campos; **Closure**, **TVDSS** y **TVDLL** se ignoran.
+Layouts frecuentes (12 cols, por **nombre** de cabecera):
+
+- **MD, Incl, Azim, TVD, TVDSS, DeltaTVD, DeltaMD, VSEC, Closure, DLS, NS, EW**
+- **MD, Incl, Azim Grid, TVD, TVDSS, TVDLL, DeltaMD, VSEC, Closure, DLS, NS, EW**
+
+Se ignoran columnas extra: **TVDSS**, **DeltaTVD**, **TVDLL**, **Closure**, etc. El orden puede cambiar.
 
 Coincidencias: nombres exactos, variantes (`Azim Grid`, `Delta MD`) y similitud leve en la cabecera (typo de una letra).
 

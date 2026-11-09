@@ -613,7 +613,39 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
 }
 
 function headerMapLooksUsable(map) {
-  return map.md !== undefined && countMappedFields(map) >= 6;
+  if (map.md === undefined) return false;
+  if (countMappedFields(map) >= 6) return true;
+  if (
+    map.mdDelta !== undefined &&
+    map.dls !== undefined &&
+    map.vertSect !== undefined
+  ) {
+    return true;
+  }
+  if (map.mdDelta !== undefined && map.dls !== undefined && countMappedFields(map) >= 5) {
+    return true;
+  }
+  return false;
+}
+
+function findBestHeaderRowMap(rows) {
+  /** @type {{ map: Record<string, number>, headerRowIndex: number, dataStart: number, score: number } | null} */
+  let best = null;
+  for (let i = 0; i < Math.min(rows.length, 25); i++) {
+    const block = tryBuildHeaderFromRows(rows, i);
+    if (!block || block.map.md === undefined) continue;
+    const score = countMappedFields(block.map);
+    const better =
+      !best ||
+      score > best.score ||
+      (score === best.score &&
+        block.map.mdDelta !== undefined &&
+        best.map.mdDelta === undefined);
+    if (better) {
+      best = { ...block, score };
+    }
+  }
+  return best;
 }
 
 function parseNumericCell(value) {
@@ -625,6 +657,7 @@ function parseNumericCell(value) {
 
 function scoreTwelveColumnMap(rows, map) {
   let score = 0;
+  let checked = 0;
   for (const row of rows) {
     const cells = row.map(cleanCell);
     if (!rowLooksLikeData(cells) || cells.length < 10) continue;
@@ -633,9 +666,11 @@ function scoreTwelveColumnMap(rows, map) {
     const dls = parseNumericCell(cells[map.dls]);
     if (Number.isFinite(md) && md > 5 && Number.isFinite(mdDelta)) {
       if (Math.abs(mdDelta - md) <= Math.max(3, md * 0.15)) score += 4;
+      else if (mdDelta > 1 && mdDelta < md * 3) score += 2;
     }
     if (Number.isFinite(dls) && Math.abs(dls) < 15) score += 1;
-    break;
+    checked += 1;
+    if (checked >= 4) break;
   }
   return score;
 }
@@ -659,7 +694,7 @@ function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
 
   if (headerRowIndex >= 0) {
     const headerMap = buildColumnMap(rows[headerRowIndex].map(cleanCell));
-    if (headerMapLooksUsable(headerMap)) {
+    if (headerMap.md !== undefined && headerMapLooksUsable(headerMap)) {
       return { columnMap: headerMap, mode: "header", headerRowIndex };
     }
   }
@@ -670,12 +705,19 @@ function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
 
   if (maxCols < 12) return { columnMap, mode, headerRowIndex };
 
+  if (mode === "header" && columnMap.md !== undefined && columnMap.mdDelta !== undefined) {
+    return { columnMap, mode, headerRowIndex };
+  }
+
   const offset = columnMap.md ?? 0;
   const wrongSequentialBToJ =
     columnMap.mdDelta === offset + 4 && columnMap.dls === offset + 6;
+  const geodeticMdDeltaAtDlsColumn = columnMap.mdDelta === offset + 9;
   const needsTwelveColLayout =
     mode !== "header" &&
-    (wrongSequentialBToJ || countMappedFields(columnMap) < 6);
+    (wrongSequentialBToJ ||
+      geodeticMdDeltaAtDlsColumn ||
+      countMappedFields(columnMap) < 6);
 
   if (needsTwelveColLayout) {
     return {
@@ -704,22 +746,13 @@ export function parsePastedSurvey(text) {
   let columnMap = {};
   let mode = "header";
 
-  /** @type {{ map: Record<string, number>, headerRowIndex: number, dataStart: number } | null} */
-  let bestHeaderBlock = null;
-  for (let i = 0; i < Math.min(rows.length, 20); i++) {
-    const block = tryBuildHeaderFromRows(rows, i);
-    if (!block || block.map.md === undefined) continue;
-    const score = countMappedFields(block.map);
-    if (
-      !bestHeaderBlock ||
-      score > countMappedFields(bestHeaderBlock.map) ||
-      (score === countMappedFields(bestHeaderBlock.map) && score >= 6)
-    ) {
-      bestHeaderBlock = block;
-      if (score >= 8) break;
-    }
-  }
-  if (bestHeaderBlock && countMappedFields(bestHeaderBlock.map) >= 3) {
+  const bestHeaderBlock = findBestHeaderRowMap(rows);
+  if (bestHeaderBlock && bestHeaderBlock.score >= 5) {
+    columnMap = bestHeaderBlock.map;
+    headerRowIndex = bestHeaderBlock.headerRowIndex;
+    dataStart = bestHeaderBlock.dataStart;
+    mode = "header";
+  } else if (bestHeaderBlock && bestHeaderBlock.score >= 3) {
     columnMap = bestHeaderBlock.map;
     headerRowIndex = bestHeaderBlock.headerRowIndex;
     dataStart = bestHeaderBlock.dataStart;
@@ -771,6 +804,18 @@ export function parsePastedSurvey(text) {
         dataStart += 1;
       }
     }
+  }
+
+  const rescanned = findBestHeaderRowMap(rows);
+  if (
+    rescanned &&
+    rescanned.score >= 5 &&
+    (mode !== "header" || rescanned.score > countMappedFields(columnMap))
+  ) {
+    columnMap = rescanned.map;
+    headerRowIndex = rescanned.headerRowIndex;
+    dataStart = Math.max(dataStart, rescanned.dataStart);
+    mode = "header";
   }
 
   ({ columnMap, mode, headerRowIndex } = applyGeodetic12LayoutIfNeeded(
