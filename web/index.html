@@ -182,19 +182,6 @@
         font-weight: 700;
         border-color: var(--slb-brand);
       }
-      thead tr.mapping th {
-        font-size: 12px;
-        font-weight: 500;
-        color: var(--text);
-        line-height: 1.25;
-        padding: 4px;
-        word-break: break-word;
-        background: var(--slb-panel);
-      }
-      thead tr.mapping th.unmapped {
-        color: #a33;
-        background: #e8d4d4;
-      }
       tbody td {
         background: #fff;
         min-height: 28px;
@@ -211,10 +198,6 @@
       }
       tbody tr.placeholder td:not(:focus) {
         color: #c8ccd6;
-      }
-      thead tr.mapping th.manual-hint {
-        font-weight: 700;
-        color: var(--text);
       }
     </style>
   </head>
@@ -276,7 +259,6 @@
             <th>m</th>
             <th>m</th>
           </tr>
-          <tr class="mapping" id="mappingRow"></tr>
         </thead>
         <tbody id="previewBody"></tbody>
       </table>
@@ -294,7 +276,6 @@
 
       const pasteArea = document.getElementById("pasteArea");
       const previewBody = document.getElementById("previewBody");
-      const mappingRow = document.getElementById("mappingRow");
 
       const PREVIEW_ROWS = 12;
       const MAX_HISTORY = 80;
@@ -444,27 +425,6 @@
         currentStations = readStationsFromPreviewTable();
       }
 
-      function renderMappingRow(sourceLabels, mode = dataEntryMode) {
-        mappingRow.innerHTML = "";
-        for (const field of STATION_FIELDS) {
-          const th = document.createElement("th");
-          if (mode === "manual") {
-            th.textContent = "Manual";
-            th.classList.add("manual-hint");
-            th.title = "Values pasted or typed directly in this column";
-          } else {
-            const label = sourceLabels[field] ?? "—";
-            th.textContent = label === "—" ? "—" : `← ${label}`;
-            if (label === "—") th.classList.add("unmapped");
-            th.title =
-              label === "—"
-                ? "No column matched for this field"
-                : `Source column: ${label}`;
-          }
-          mappingRow.appendChild(th);
-        }
-      }
-
       function buildEditableRowCells() {
         const frag = document.createDocumentFragment();
         for (const field of STATION_FIELDS) {
@@ -486,7 +446,6 @@
       function onTableEdited() {
         dataEntryMode = "manual";
         syncFromTable();
-        renderMappingRow({}, "manual");
         scheduleCommitHistory();
       }
 
@@ -505,14 +464,12 @@
         fillGridFromAnchor(rowIndex, startFieldIndex, grid);
         dataEntryMode = "manual";
         syncFromTable();
-        renderMappingRow({}, "manual");
         commitHistory();
       }
 
       function renderPreviewFromGrid(grid, sourceLabels, mode) {
         dataEntryMode = mode;
         currentSourceLabels = { ...sourceLabels };
-        renderMappingRow(sourceLabels, mode);
         previewBody.innerHTML = "";
         const total = Math.max(PREVIEW_ROWS, grid.length);
         for (let i = 0; i < total; i++) {
