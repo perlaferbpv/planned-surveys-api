@@ -176,11 +176,33 @@ const IGNORED_HEADER_TOKENS = new Set([
   "expectedmaxinclination",
 ]);
 
+/**
+ * Encabezados estándar (macro Excel, hoja Data col. B–J).
+ * Tras normalizeHeaderToken: minúsculas, sin espacios ni unidades.
+ */
+const EXACT_HEADER_MAP = {
+  md: "md",
+  incl: "incl",
+  azim: "azi",
+  azi: "azi",
+  tvd: "tvd",
+  deltamd: "mdDelta",
+  mddelta: "mdDelta",
+  vsec: "vertSect",
+  vertsect: "vertSect",
+  dls: "dls",
+  ns: "dispNs",
+  ew: "dispEw",
+  dispns: "dispNs",
+  dispew: "dispEw",
+};
+
 /** Coincidencia por prefijo cuando el nombre trae sufijos o unidades pegadas. */
 const HEADER_PREFIX_TO_FIELD = [
   ["measureddepth", "md"],
   ["deltamd", "mdDelta"],
   ["verticalsection", "vertSect"],
+  ["azim", "azi"],
   ["holeinclination", "incl"],
   ["holeincl", "incl"],
   ["holeazimuth", "azi"],
@@ -331,6 +353,7 @@ function collapseKnownHeaderPhrases(line) {
   return line
     .replace(/\bAzim\s+Grid\b/gi, "AzimGrid")
     .replace(/\bAzimuth\s+Grid\b/gi, "AzimuthGrid")
+    .replace(/\bAzim\b/gi, "Azim")
     .replace(/\bDelta\s+MD\b/gi, "DeltaMD")
     .replace(/\bTrue\s+Vertical\s+Depth\b/gi, "TVD")
     .replace(/\bMeasured\s+Depth\b/gi, "MD")
@@ -441,6 +464,9 @@ function fieldForHeaderToken(token) {
   if (!token) return null;
   if (isIgnoredHeaderToken(token)) return null;
   if (token.startsWith("clos")) return null;
+
+  const exactField = EXACT_HEADER_MAP[token];
+  if (exactField) return exactField;
 
   for (const { field, alias } of SORTED_HEADER_ALIAS_ENTRIES) {
     if (token === alias) return field;

@@ -4,17 +4,33 @@ El convertidor busca **nombres en la fila de cabecera** (no importa el orden ni 
 
 ## Campos del XML (macro Excel)
 
+Coincidencia directa (prioritaria):
+
+| Cabecera pegada | Campo XML |
+|-----------------|-----------|
+| MD | `md` |
+| Incl | `incl` |
+| Azim | `azi` |
+| TVD | `tvd` |
+| DeltaMD | `mdDelta` |
+| VSEC | `vertSect` |
+| DLS | `dls` |
+| NS | `dispNs` |
+| EW | `dispEw` |
+
+Otros alias:
+
 | Campo XML | Alias comunes (ejemplos) |
 |-----------|---------------------------|
-| `md` | MD, Measured Depth, DEPTH, Measured Depth (ft), DEPTH (m) |
-| `incl` | Incl, Inclination, INC, Hole Inclination |
-| `azi` | Azi, Azim, Azimuth, Hole Azimuth |
-| `tvd` | TVD, True Vertical Depth |
-| `mdDelta` | mdDelta, DeltaMD, Delta MD |
-| `vertSect` | vertSect, VSEC, Vertical Section |
-| `dls` | DLS, Dogleg, DLS (°/30m) |
-| `dispNs` | dispNs, NS, Northing |
-| `dispEw` | dispEw, EW, Easting |
+| `md` | Measured Depth, DEPTH, Measured Depth (ft) |
+| `incl` | Inclination, INC, Hole Inclination |
+| `azi` | Azi, Azimuth, Azim Grid, Hole Azimuth |
+| `tvd` | True Vertical Depth |
+| `mdDelta` | mdDelta, Delta MD |
+| `vertSect` | vertSect, Vertical Section |
+| `dls` | Dogleg, DLS (°/30m) |
+| `dispNs` | dispNs, Northing |
+| `dispEw` | dispEw, Easting |
 
 ## Reportes geodésicos (p. ej. *Geodetic Interpolated Report*)
 
