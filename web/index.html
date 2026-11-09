@@ -195,12 +195,6 @@
         color: #a33;
         background: #e8d4d4;
       }
-      .section-hint {
-        margin: -4px 0 10px;
-        font-size: 12px;
-        color: var(--text);
-        line-height: 1.35;
-      }
       tbody td {
         background: #fff;
         min-height: 28px;
@@ -258,10 +252,6 @@
 
     <section class="preview-wrap">
       <h2 class="section-title">Preview in csv</h2>
-      <p class="section-hint">
-        Automatic: paste the full report above. Manual: click a column and paste values
-        from Excel (one field per column, same row order).
-      </p>
       <table id="previewTable">
         <thead>
           <tr id="headerNames">
@@ -310,15 +300,46 @@
       /** @type {"auto" | "manual"} */
       let dataEntryMode = "auto";
 
-      function splitColumnValues(text) {
+      function parseClipboardGrid(text) {
         const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
-        const values = [];
+        /** @type {string[][]} */
+        const grid = [];
         for (const line of lines) {
-          const parts = line.split("\t").map((s) => s.trim());
-          if (parts.length > 1) values.push(...parts);
-          else if (line.trim() !== "") values.push(line.trim());
+          const trimmed = line.trim();
+          if (!trimmed && grid.length) continue;
+          const cells = line.includes("\t")
+            ? line.split("\t").map((s) => s.trim())
+            : [trimmed];
+          if (cells.some((c) => c !== "")) grid.push(cells);
         }
-        return values;
+        return grid;
+      }
+
+      function ensurePreviewRowCount(need) {
+        const rows = [...previewBody.querySelectorAll("tr")];
+        while (rows.length < need) {
+          const tr = document.createElement("tr");
+          tr.appendChild(buildEditableRowCells());
+          previewBody.appendChild(tr);
+          rows.push(tr);
+        }
+        return rows;
+      }
+
+      function fillGridFromAnchor(startRowIndex, startFieldIndex, grid) {
+        const rows = ensurePreviewRowCount(startRowIndex + grid.length);
+        grid.forEach((cells, rowOffset) => {
+          const tr = rows[startRowIndex + rowOffset];
+          if (!tr) return;
+          tr.classList.remove("placeholder");
+          cells.forEach((value, colOffset) => {
+            const fieldIndex = startFieldIndex + colOffset;
+            if (fieldIndex < 0 || fieldIndex >= STATION_FIELDS.length) return;
+            const field = STATION_FIELDS[fieldIndex];
+            const td = tr.querySelector(`td[data-field="${field}"]`);
+            if (td) td.textContent = value;
+          });
+        });
       }
 
       function readStationsFromPreviewTable() {
@@ -363,23 +384,6 @@
         }
       }
 
-      function fillColumnFromCell(startRowIndex, field, values) {
-        const rows = [...previewBody.querySelectorAll("tr")];
-        while (rows.length < startRowIndex + values.length) {
-          const tr = document.createElement("tr");
-          tr.appendChild(buildEditableRowCells());
-          previewBody.appendChild(tr);
-          rows.push(tr);
-        }
-        values.forEach((value, i) => {
-          const row = rows[startRowIndex + i];
-          if (!row) return;
-          row.classList.remove("placeholder");
-          const td = row.querySelector(`td[data-field="${field}"]`);
-          if (td) td.textContent = value;
-        });
-      }
-
       function buildEditableRowCells() {
         const frag = document.createDocumentFragment();
         for (const field of STATION_FIELDS) {
@@ -414,7 +418,9 @@
         const field = td.dataset.field;
         const tr = td.closest("tr");
         const rowIndex = [...previewBody.querySelectorAll("tr")].indexOf(tr);
-        fillColumnFromCell(rowIndex, field, splitColumnValues(text));
+        const startFieldIndex = STATION_FIELDS.indexOf(field);
+        const grid = parseClipboardGrid(text);
+        fillGridFromAnchor(rowIndex, startFieldIndex, grid);
         dataEntryMode = "manual";
         syncFromTable();
         renderMappingRow({}, "manual");
