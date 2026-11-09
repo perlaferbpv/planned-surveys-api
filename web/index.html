@@ -565,35 +565,21 @@
         commitHistory();
       }
 
-      async function saveXmlBlob(blob) {
-        const defaultName = "Planned_surveys_.xml";
-        if (typeof window.showSaveFilePicker === "function") {
-          try {
-            const handle = await window.showSaveFilePicker({
-              suggestedName: defaultName,
-              types: [
-                {
-                  description: "XML (WITSML)",
-                  accept: { "application/xml": [".xml"] },
-                },
-              ],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-            return;
-          } catch (err) {
-            if (err?.name === "AbortError") return;
-          }
-        }
+      function sanitizeXmlFilename(name) {
+        const trimmed = (name ?? "").trim() || "Planned_surveys_.xml";
+        const base = trimmed.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+        return base.toLowerCase().endsWith(".xml") ? base : `${base}.xml`;
+      }
+
+      function saveXmlBlob(blob, filename) {
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = defaultName;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(a.href);
       }
 
-      async function exportXml() {
+      function exportXml() {
         syncFromTable();
         if (!currentStations.length && pasteArea.value.trim()) {
           applyPaste();
@@ -609,7 +595,9 @@
         const blob = new Blob([encodeUtf8NoBom(xml)], {
           type: "application/xml;charset=utf-8",
         });
-        await saveXmlBlob(blob);
+        const chosen = window.prompt("File name", "Planned_surveys_.xml");
+        if (chosen === null) return;
+        saveXmlBlob(blob, sanitizeXmlFilename(chosen));
       }
 
       pasteArea.addEventListener("paste", () => {
