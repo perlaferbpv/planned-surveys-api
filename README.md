@@ -39,7 +39,7 @@ cd C:\Apps\planned-surveys-api
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Abre `http://127.0.0.1:8000/` → pantalla **Sign in with SLB** (mismo estilo que APS Digital) → tras login, el convertidor en `/app`.
+Abre **`http://localhost:8000/`** (mismo host que `SLB_REDIRECT_URI` en `.env`, normalmente `localhost` no `127.0.0.1`) → **Sign in with SLB** → convertidor en `/app`.
 
 ### Publicar URL gratis (Netlify Drop — sin cuenta Azure)
 

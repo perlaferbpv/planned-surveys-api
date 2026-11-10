@@ -79,7 +79,7 @@ class TestSlbAuthRoutes:
         client.cookies.set("slb_access_token", "old")
         response = client.get("/api/auth/logout", follow_redirects=False)
         assert response.status_code == 302
-        assert response.headers["location"] == "http://testserver/login"
+        assert response.headers["location"] == "/login"
         set_cookie = response.headers.get("set-cookie", "").lower()
         assert "slb_access_token" in set_cookie
 
@@ -142,9 +142,13 @@ class TestSlbAuthRoutes:
             follow_redirects=False,
         )
         assert response.status_code == 302
-        assert response.headers["location"] == "http://testserver/app"
-        assert client.cookies.get("slb_access_token") == "callback-access-token"
-        assert client.cookies.get("slb_refresh_token") == "callback-refresh"
+        assert response.headers["location"] == "/app"
+        set_cookie = response.headers.get("set-cookie", "").lower()
+        assert "path=/" in set_cookie
+        assert "ps_session_id=" in set_cookie
+
+        app_response = client.get("/app", follow_redirects=False)
+        assert app_response.status_code == 200
 
 
 class TestPlannedSurveysXml:

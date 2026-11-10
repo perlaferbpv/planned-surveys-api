@@ -75,7 +75,14 @@ def resolve_frontend_url() -> str:
     explicit = os.getenv("APP_FRONTEND_URL", "").strip()
     if explicit:
         return explicit.rstrip("/")
-    return os.getenv("APP_BASE_URL", "http://127.0.0.1:8000").strip().rstrip("/")
+    redirect = os.getenv("SLB_REDIRECT_URI", "").strip()
+    if redirect:
+        from urllib.parse import urlparse
+
+        parsed = urlparse(redirect)
+        if parsed.scheme and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}"
+    return os.getenv("APP_BASE_URL", "http://localhost:8000").strip().rstrip("/")
 
 
 def _utcnow() -> datetime:
@@ -191,6 +198,18 @@ def token_expires_at(token_data: dict[str, Any]) -> datetime | None:
         return _utcnow() + timedelta(seconds=int(expires_in))
     except (TypeError, ValueError):
         return None
+
+
+def token_payload_from_response(token_data: dict[str, Any]) -> dict[str, Any]:
+    expires = token_expires_at(token_data)
+    return {
+        "access_token": str(token_data.get("access_token", "")),
+        "refresh_token": str(token_data.get("refresh_token", "") or ""),
+        "id_token": str(token_data.get("id_token", "") or ""),
+        "token_type": str(token_data.get("token_type", "Bearer")),
+        "scope": str(token_data.get("scope", "")),
+        "expires_at": expires.isoformat() if expires else "",
+    }
 
 
 def decode_jwt_payload(token: str) -> dict[str, Any]:

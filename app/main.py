@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from datetime import timezone
 from pathlib import Path
 from typing import Annotated, Any
 from urllib.parse import quote
@@ -18,14 +17,20 @@ from app.slb_auth import (
     handle_oauth_callback,
     resolve_frontend_url,
     slb_auth_required,
-    token_expires_at,
 )
-from app.slb_auth_deps import access_token_from_request, require_slb_user, session_is_valid
+from app.session_store import clear_session, create_session, session_cookie_name
+from app.slb_auth_deps import (
+    _payload_from_request,
+    access_token_from_request,
+    require_slb_user,
+    session_is_valid,
+)
 from app.witsml import build_planned_surveys_xml
 
 load_dotenv()
 
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
+_COOKIE_PATH = "/"
 
 # Si DDH monta la app bajo un subpath (p. ej. /planned-surveys), define ROOT_PATH=/planned-surveys
 _root_path = os.environ.get("ROOT_PATH", "").rstrip("/")
@@ -113,19 +118,29 @@ def slb_login() -> RedirectResponse:
 
 
 @app.get("/api/auth/logout")
-def slb_logout() -> RedirectResponse:
-    response = RedirectResponse(url=resolve_frontend_url() + "/login", status_code=302)
-    for name in ("slb_access_token", "slb_refresh_token", "slb_id_token", "slb_expires_at"):
-        response.delete_cookie(name)
+def slb_logout(request: Request) -> RedirectResponse:
+    clear_session(request.cookies.get(session_cookie_name()))
+    response = RedirectResponse(url="/login", status_code=302)
+    for name in (
+        session_cookie_name(),
+        "slb_access_token",
+        "slb_refresh_token",
+        "slb_id_token",
+        "slb_expires_at",
+    ):
+        response.delete_cookie(name, path=_COOKIE_PATH)
     return response
 
 
 @app.get("/api/auth/me")
 def slb_me(request: Request) -> JSONResponse:
+    if not session_is_valid(request):
+        return JSONResponse({"authenticated": False})
     token = access_token_from_request(request)
     if not token:
         return JSONResponse({"authenticated": False})
-    id_token = request.cookies.get("slb_id_token", "")
+    session_payload = _payload_from_request(request) or {}
+    id_token = str(session_payload.get("id_token", ""))
     return JSONResponse(
         {
             "authenticated": True,
@@ -151,49 +166,25 @@ def slb_callback(
         )
     except ValueError as exc:
         detail = quote(str(exc), safe="")
-        return RedirectResponse(
-            url=f"{resolve_frontend_url()}/login?error={detail}",
-            status_code=302,
-        )
+        return RedirectResponse(url=f"/login?error={detail}", status_code=302)
     except Exception as exc:
         detail = quote(str(exc), safe="")
-        return RedirectResponse(
-            url=f"{resolve_frontend_url()}/login?error={detail}",
-            status_code=302,
-        )
+        return RedirectResponse(url=f"/login?error={detail}", status_code=302)
 
-    access = str(token_data.get("access_token", ""))
-    refresh = str(token_data.get("refresh_token", "") or "")
-    id_token = str(token_data.get("id_token", "") or "")
-    expires = token_expires_at(token_data)
+    session_id = create_session(token_data)
     max_age = int(token_data.get("expires_in") or 3600)
+    if max_age < 60:
+        max_age = 3600
 
-    response = RedirectResponse(url=resolve_frontend_url() + "/app", status_code=302)
+    response = RedirectResponse(url="/app", status_code=302)
     response.set_cookie(
-        "slb_access_token",
-        access,
+        session_cookie_name(),
+        session_id,
         httponly=True,
         max_age=max_age,
         samesite="lax",
+        path=_COOKIE_PATH,
     )
-    if refresh:
-        response.set_cookie(
-            "slb_refresh_token",
-            refresh,
-            httponly=True,
-            max_age=max_age,
-            samesite="lax",
-        )
-    if id_token:
-        response.set_cookie("slb_id_token", id_token, httponly=True, max_age=max_age, samesite="lax")
-    if expires:
-        response.set_cookie(
-            "slb_expires_at",
-            expires.astimezone(timezone.utc).isoformat(),
-            httponly=True,
-            max_age=max_age,
-            samesite="lax",
-        )
     return response
 
 
