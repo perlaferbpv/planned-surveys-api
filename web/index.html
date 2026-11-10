@@ -289,21 +289,45 @@
     </section>
 
     <script>
-      fetch("/api/auth/me", { credentials: "same-origin" })
-        .then(function (r) {
-          return r.json();
-        })
-        .then(function (data) {
-          if (!data.authenticated) {
-            window.location.replace("/login");
-            return;
+      (function () {
+        /** GitHub Pages / static server: no FastAPI, no SLB session. */
+        function isStaticPublicConverter() {
+          var host = window.location.hostname;
+          if (host.endsWith(".github.io") || host.endsWith(".netlify.app")) {
+            return true;
           }
-          var el = document.getElementById("userEmail");
-          if (el) el.textContent = data.email || "Signed in";
-        })
-        .catch(function () {
-          window.location.replace("/login");
-        });
+          var port = window.location.port;
+          if (
+            (host === "localhost" || host === "127.0.0.1") &&
+            port === "8080"
+          ) {
+            return true;
+          }
+          return false;
+        }
+
+        if (isStaticPublicConverter()) {
+          var menu = document.getElementById("userMenu");
+          if (menu) menu.hidden = true;
+          return;
+        }
+
+        fetch("/api/auth/me", { credentials: "same-origin" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data.authenticated) {
+              window.location.replace("/login");
+              return;
+            }
+            var el = document.getElementById("userEmail");
+            if (el) el.textContent = data.email || "Signed in";
+          })
+          .catch(function () {
+            window.location.replace("/login");
+          });
+      })();
     </script>
     <script type="module">
       import {
