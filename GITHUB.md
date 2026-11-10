@@ -1,66 +1,63 @@
-# Publicar en GitHub (con Cursor + Pages)
+# Publish on GitHub (Cursor + Pages)
 
-Ya tienes GitHub enlazado en Cursor. Sigue estos pasos **una vez**; después cada cambio se actualiza con un push.
+With GitHub linked in Cursor, follow these steps **once**; later updates are a push.
 
-## 1. Subir el proyecto a un repo nuevo
+## 1. Push the project to a new repo
 
-En **Cursor**:
+In **Cursor**:
 
-1. Abre la carpeta `planned-surveys-api` (si no está abierta).
-2. Panel **Source Control** (icono de ramas a la izquierda).
-3. Si pide **Initialize Repository** → confirma.
-4. Escribe mensaje de commit, por ejemplo: `Convertidor Planned Surveys web + API`.
-5. **Commit** (marca todos los archivos excepto `.venv`; el `.gitignore` ya la excluye).
-6. **Publish to GitHub** / **Publish Branch** → elige **repositorio privado o público**:
-   - **Público** si quieres que cualquiera abra la URL del convertidor sin login.
-   - Nombre sugerido: `planned-surveys-api`.
+1. Open the `planned-surveys-api` folder.
+2. **Source Control** (branch icon).
+3. **Initialize Repository** if prompted.
+4. Commit message example: `Planned Surveys web converter + API`.
+5. **Commit** (exclude `.venv`; `.gitignore` handles it).
+6. **Publish to GitHub** → public or private:
+   - **Public** if you want a shareable converter URL (static `web/` only on Pages; full SLB app needs Azure/Render).
+   - Suggested name: `planned-surveys-api`.
 
-Si no aparece “Publish to GitHub”, instala [Git for Windows](https://git-scm.com/download/win), reinicia Cursor y repite.
+If **Publish to GitHub** is missing, install [Git for Windows](https://git-scm.com/download/win) and retry.
 
-## 2. Activar GitHub Pages (obligatorio antes del deploy)
+## 2. Enable GitHub Pages (before deploy)
 
-En el navegador: **https://github.com/perlaferbpv/planned-surveys-api/settings/pages**
+In the browser: `https://github.com/<user>/<repo>/settings/pages`
 
-1. **Build and deployment** → **Source**: elige **GitHub Actions** (no “Deploy from a branch”).
-2. Si no ves la opción, guarda la página una vez; GitHub a veces provisiona Pages en la primera visita.
+1. **Build and deployment** → **Source**: **GitHub Actions** (not “Deploy from a branch”).
+2. Save the settings page once if options are missing.
 
-Si el workflow falla con **404** / *Ensure GitHub Pages has been enabled*:
+If the workflow fails with **404** / *Ensure GitHub Pages has been enabled*:
 
-1. Confirma que el repo sea **Public** (Settings → General → Danger zone). En cuenta gratis, Pages en repos privados suele fallar.
-2. **Settings → Pages → Source = GitHub Actions** (guarda la página).
-3. Haz **push** del último `github-pages.yml` (incluye `configure-pages`) y **Re-run** el workflow.
+1. Repo **Public** (free Pages on private repos often fails).
+2. **Settings → Pages → Source = GitHub Actions**.
+3. Push the latest `github-pages.yml` and **Re-run** the workflow.
 
-**Plan B (rama `gh-pages`):**
+**Plan B (`gh-pages` branch):**
 
-1. **Actions** → **GitHub Pages (rama gh-pages)** → **Run workflow**.
-2. **Settings → Pages → Source: Deploy from a branch** → Branch **`gh-pages`** → **`/(root)`**.
-3. URL: `https://perlaferbpv.github.io/planned-surveys-api/`
+1. **Actions** → **GitHub Pages (gh-pages branch)** → **Run workflow**.
+2. **Settings → Pages** → branch **`gh-pages`**, folder **`/(root)`**.
 
-3. Tras el push a `main`, verifica que el job termine en verde.
+3. After push to `main`, confirm the job is green.
 
-## 3. Tu URL pública
+## 3. Public URL
 
-Será algo como:
+`https://<user>.github.io/<repo>/`
 
-`https://<tu-usuario>.github.io/planned-surveys-api/`
+Static converter only (paste Excel columns B–J → `Planned_surveys_.xml`). For SLB login, deploy FastAPI (Azure/Render/local on port 8000).
 
-(El nombre del repo es el segundo segmento de la URL.)
+## 4. Later updates
 
-Ahí está el convertidor: pegar Excel (B–J) → generar / descargar `Planned_surveys_.xml`.
+Source Control → commit → **Sync** / **Push**. Actions republish `web/` in seconds.
 
-## 4. Actualizar después
+## Web-only minimal repo
 
-En Cursor: Source Control → commit → **Sync** / **Push**. GitHub Actions vuelve a publicar la carpeta `web/` en unos segundos.
+Upload only `web/index.html` and `web/witsml.js` to the repo root and set workflow `path: web` to `.` if needed.
 
-## Solo la web (repo mínimo)
+## Try without publishing
 
-Si prefieres un repo solo con el convertidor, sube únicamente `web/index.html` y `web/witsml.js` a la raíz del repo y cambia en el workflow la ruta `path: web` por `.` — o pídele al agente que lo ajuste.
-
-## Probar sin publicar
+For **static only** (no SLB):
 
 ```powershell
-cd C:\Users\PVargas6\Projects\planned-surveys-api\web
+cd C:\Apps\planned-surveys-api\web
 python -m http.server 8080
 ```
 
-Abre `http://127.0.0.1:8080/`.
+For **SLB + converter**, use FastAPI on port **8000** (see README).

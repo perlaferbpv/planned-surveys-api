@@ -32,12 +32,12 @@ load_dotenv()
 WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 _COOKIE_PATH = "/"
 
-# Si DDH monta la app bajo un subpath (p. ej. /planned-surveys), define ROOT_PATH=/planned-surveys
+# If DDH mounts the app under a subpath (e.g. /planned-surveys), set ROOT_PATH=/planned-surveys
 _root_path = os.environ.get("ROOT_PATH", "").rstrip("/")
 
 app = FastAPI(
     title="Planned Surveys XML",
-    description="Replica la macro Convert_and_Generate_XML_UTF8 del Excel Planned surveys generator.",
+    description="Replicates the Excel Planned surveys generator macro Convert_and_Generate_XML_UTF8.",
     version="1.0.0",
     root_path=_root_path,
 )
@@ -91,7 +91,7 @@ def app_page(request: Request) -> Response:
 @app.get("/api")
 def api_meta() -> dict[str, str]:
     links: dict[str, str] = {
-        "message": "POST /api/planned-surveys/xml con JSON de estaciones (columnas B–J del Excel).",
+        "message": "POST /api/planned-surveys/xml with station JSON (Excel columns B–J).",
         "health": "/health",
         "docs": "/docs",
         "app": "/app",
@@ -194,7 +194,10 @@ def generate_xml(
     _user: Annotated[dict[str, str], Depends(require_slb_user)],
 ) -> Response:
     if not body.stations:
-        raise HTTPException(status_code=400, detail="Se requiere al menos una estación (fila 4 en adelante).")
+        raise HTTPException(
+            status_code=400,
+            detail="At least one station is required (Excel Data sheet from row 4).",
+        )
 
     meta = body.meta or TrajectoryMeta()
     station_dicts: list[dict[str, Any]] = [

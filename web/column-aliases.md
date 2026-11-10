@@ -1,13 +1,13 @@
-# Columnas reconocidas al pegar
+# Recognized columns when pasting
 
-El convertidor busca **nombres en la fila de cabecera** (no importa el orden ni columnas extra).
+The converter matches **header row names** (order and extra columns do not matter).
 
-## Campos del XML (macro Excel)
+## XML fields (Excel macro)
 
-Coincidencia directa (prioritaria):
+Direct match (priority):
 
-| Cabecera pegada | Campo XML |
-|-----------------|-----------|
+| Pasted header | XML field |
+|---------------|-----------|
 | MD | `md` |
 | Incl | `incl` |
 | Azim | `azi` |
@@ -18,10 +18,10 @@ Coincidencia directa (prioritaria):
 | NS | `dispNs` |
 | EW | `dispEw` |
 
-Otros alias:
+Other aliases:
 
-| Campo XML | Alias comunes (ejemplos) |
-|-----------|---------------------------|
+| XML field | Common aliases |
+|-----------|----------------|
 | `md` | Measured Depth, DEPTH, Measured Depth (ft) |
 | `incl` | Inclination, INC, Hole Inclination |
 | `azi` | Azi, Azimuth, Azim Grid, Hole Azimuth |
@@ -32,38 +32,31 @@ Otros alias:
 | `dispNs` | dispNs, Northing |
 | `dispEw` | dispEw, Easting |
 
-## Reportes geodésicos (p. ej. *Geodetic Interpolated Report*)
+## Geodetic reports (e.g. *Geodetic Interpolated Report*)
 
-Suele incluir **12 columnas**. Sin cabeceras, el orden fijo es:
+Often **12 columns**. Without headers, fixed order:
 
-| Col | Campo XML |
+| Col | XML field |
 |-----|-----------|
 | 1–4 | MD, Incl, Azim, TVD |
-| 5 | TVDSS (ignorada) |
+| 5 | TVDSS (ignored) |
 | 6 | VSEC → vertSect |
-| 7 | AHD (ignorada) |
+| 7 | AHD (ignored) |
 | 8–9 | NS, EW |
 | 10 | DeltaMD → mdDelta |
-| 11 | DeltaTVD (ignorada) |
+| 11 | DeltaTVD (ignored) |
 | 12 | DLS |
 
-Con **cabeceras por nombre** el orden puede cambiar; columnas extra no cuentan para el XML.
+With headers, order may vary; extra columns are ignored.
 
-Layouts frecuentes (12 cols, por **nombre** de cabecera):
+Common 12-column header layouts include TVDSS, DeltaTVD, TVDLL, Closure, etc.—those are **ignored** for planned XML.
 
-- **MD, Incl, Azim, TVD, TVDSS, DeltaTVD, DeltaMD, VSEC, Closure, DLS, NS, EW**
-- **MD, Incl, Azim Grid, TVD, TVDSS, TVDLL, DeltaMD, VSEC, Closure, DLS, NS, EW**
+**Not exported:** TVDSS, TVDLL, DeltaTVD, Closure, lat/long, comments, hole size, MD From/To, etc.
 
-Se ignoran columnas extra: **TVDSS**, **DeltaTVD**, **TVDLL**, **Closure**, etc. El orden puede cambiar.
+## CSV in another language
 
-Coincidencias: nombres exactos, variantes (`Azim Grid`, `Delta MD`) y similitud leve en la cabecera (typo de una letra).
+Share a header row in chat or add aliases in `HEADER_ALIASES` inside `witsml.js`.
 
-Se **ignoran** (no van al XML planificado): TVDSS, TVDLL, DeltaTVD, Closure, Latitude, Longitude, comentarios, hole size, MD From/To, etc.
+## Units note
 
-## CSV con otro idioma o nombre
-
-Pega una fila de cabecera al chat o añádela en `HEADER_ALIASES` dentro de `witsml.js`.
-
-## Nota unidades
-
-La macro asume **metros / grados** como el Excel. Si pegas **Measured Depth (ft)** u otras unidades, los **números** se copian tal cual (sin conversión). Convierte en origen si hace falta metros en el XML.
+The macro assumes **meters / degrees** like Excel. Pasted **ft** values are copied as-is (no conversion). Convert at source if you need meters in XML.

@@ -169,7 +169,7 @@ class TestPlannedSurveysXml:
     def test_post_xml_empty_stations_400(self, client: TestClient) -> None:
         response = client.post("/api/planned-surveys/xml", json={"stations": []})
         assert response.status_code == 400
-        assert "estación" in response.json()["detail"].lower() or "estaci" in response.json()["detail"]
+        assert "station" in response.json()["detail"].lower()
 
     def test_post_xml_requires_auth_when_enabled(
         self, client: TestClient, sample_station_payload: dict, monkeypatch: pytest.MonkeyPatch

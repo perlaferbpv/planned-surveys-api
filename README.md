@@ -1,11 +1,11 @@
 # Planned Surveys XML API
 
-Servicio HTTP que reproduce la macro **Convert_and_Generate_XML_UTF8** del archivo Excel *Planned surveys generator* (hoja **Data**, datos desde fila 4).
+HTTP service that replicates the Excel macro **Convert_and_Generate_XML_UTF8** from *Planned surveys generator* (sheet **Data**, rows from row 4).
 
-## Columnas (Excel → JSON)
+## Columns (Excel → JSON)
 
-| Columna | Campo JSON |
-|---------|------------|
+| Column | JSON field |
+|--------|------------|
 | B `md` | `md` |
 | C `incl` | `incl` |
 | D `azi` | `azi` |
@@ -16,22 +16,19 @@ Servicio HTTP que reproduce la macro **Convert_and_Generate_XML_UTF8** del archi
 | I `dispNs` | `dispNs` |
 | J `dispEw` | `dispEw` |
 
-Valores `N/A`, vacíos o nulos se convierten a `-999.25`, igual que en Excel. Las comas decimales se normalizan a punto.
+`N/A`, empty, or null values become `-999.25`, same as Excel. Decimal commas normalize to dots.
 
-## Hosting sin Azure (recomendado si no tienes suscripción)
+## Hosting without Azure
 
-Tu convertidor **no necesita servidor**: es solo texto → XML. La carpeta **`web/`** hace lo mismo que la macro, en el navegador.
+| Option | Cost | Notes |
+|--------|------|--------|
+| **Local FastAPI / Render / Azure** | Free–low | SLB login + converter at **`/app`** (port **8000**). See `.env` and route table below. |
+| **GitHub Pages / Netlify (`web/` only)** | Free | No SLB login; browser-only JS (legacy mode). |
+| **Excel + macro** | — | No deployment needed. |
 
-| Opción | Costo | URL pública | Notas |
-|--------|-------|-------------|--------|
-| **GitHub Pages / Cloudflare Pages / Netlify** | Gratis | `https://tu-usuario.github.io/...` | Sube solo la carpeta `web`. **Mejor opción** para compartir con cualquiera. |
-| **Render / Fly.io / Railway** | Tier gratis limitado | `https://algo.onrender.com` | Sirve la API FastAPI (`render.yaml` incluido). Útil si otros sistemas llaman `POST` con JSON. |
-| **Local + enlace temporal** | Gratis | ngrok / Cloudflare Tunnel | Para pruebas rápidas, no ideal 24/7. |
-| **Excel + macro** | — | — | Sigue válido sin publicar nada. |
+### Run locally (with SLB login)
 
-### Probar la web en tu PC (con login SLB)
-
-Arranca la API (sirve la UI en el mismo puerto **8000**):
+Start the API (UI on the same port **8000**):
 
 ```powershell
 cd C:\Apps\planned-surveys-api
@@ -39,65 +36,72 @@ cd C:\Apps\planned-surveys-api
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Abre **`http://localhost:8000/`** (mismo host que `SLB_REDIRECT_URI` en `.env`, normalmente `localhost` no `127.0.0.1`) → **Sign in with SLB** → convertidor en `/app`.
+Open **`http://localhost:8000/`** (same host as `SLB_REDIRECT_URI` in `.env`—use **`localhost`**, not `127.0.0.1`) → **Sign in with SLB** → converter at `/app`.
 
-### Publicar URL gratis (Netlify Drop — sin cuenta Azure)
+Do **not** use port **8080** or `python -m http.server` for the secured app.
 
-1. Entra a [app.netlify.com/drop](https://app.netlify.com/drop).
-2. Arrastra la carpeta **`web`** completa.
-3. Netlify te da una URL tipo `https://random-name.netlify.app` que puedes compartir.
+### Free public URL (Netlify Drop)
 
-### Publicar con GitHub Pages
+1. Go to [app.netlify.com/drop](https://app.netlify.com/drop).
+2. Drag the full **`web`** folder.
+3. Share the generated `https://….netlify.app` URL (static only, no SLB).
 
-1. Crea un repo en GitHub y sube el contenido de **`web/`** (o todo el proyecto con Pages apuntando a `/web`).
-2. **Settings → Pages →** carpeta `main` / raíz del sitio.
-3. URL: `https://<usuario>.github.io/<repo>/`.
+### GitHub Pages
 
-### API en Render (opcional, cuenta gratis)
+1. Push **`web/`** (or the whole repo with Pages rooted at `/web`).
+2. **Settings → Pages** → branch `main`.
+3. URL: `https://<user>.github.io/<repo>/`.
 
-1. [render.com](https://render.com) → cuenta gratuita → **New → Blueprint** o Web Service.
-2. Conecta el repo; usa el archivo `render.yaml`.
-3. URL API: `POST https://<nombre>.onrender.com/api/planned-surveys/xml` (el plan free se “duerme” tras inactividad; la primera petición tarda ~1 min).
+### Render (optional)
+
+1. [render.com](https://render.com) → connect the repo; use `render.yaml`.
+2. `POST https://<name>.onrender.com/api/planned-surveys/xml` (free tier may sleep).
 
 ---
 
-## API FastAPI en local (opcional)
+## Local FastAPI
 
 ```powershell
-cd C:\Users\PVargas6\Projects\planned-surveys-api
+cd C:\Apps\planned-surveys-api
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-**Tests (unit, sin llamar a SLB real):**
+### Main routes
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Redirect to `/login` or `/app` |
+| `/login` | **Sign in with SLB** (APS Digital–style layout) |
+| `/app` | WITSML converter (session required) |
+| `GET /api/auth/login` | Start OAuth → CSI |
+| `GET /api/callback` | SLB-registered redirect URI (port **8000**) |
+| `GET /api/auth/me` | Session status |
+| `GET /api/auth/logout` | Sign out → `/login` |
+| `POST /api/planned-surveys/xml` | JSON → XML file |
+| `/docs` | Swagger |
+
+### SLB OAuth
+
+Copy `.env.example` → `.env` with `CLIENT_ID`, `CLIENT_SECRET`, `APP_KEY`.  
+`SLB_REDIRECT_URI` must match the SLB portal exactly (e.g. `http://localhost:8000/api/callback`).
+
+- Session cookie: `ps_session_id`; tokens stored server-side (`app/session_store.py`).
+- Successful login redirects to **`/app`**.
+- Optional: `SLB_AUTH_REQUIRED=true` requires session or `Authorization: Bearer` on POST XML.
+- Same pattern as **`aps_digital`** (`app/slb_auth.py`, `web/login.html`, `web/slbLogo.png`).
+
+**Tests (no live CSI calls):**
 
 ```powershell
-pip install -r requirements.txt
-python -m pytest tests -v
+.\.venv\Scripts\python.exe -m pytest tests -v
 ```
 
-**URL:** `http://127.0.0.1:8000/api/planned-surveys/xml` (método **POST**)
+Use the **`.venv`** Python; global `python` may not have `pytest`.
 
-Documentación interactiva: `http://127.0.0.1:8000/docs`
-
-### SLB OAuth (opcional)
-
-Copia `.env.example` → `.env` y rellena `CLIENT_ID`, `CLIENT_SECRET`, `APP_KEY`. El `SLB_REDIRECT_URI` debe coincidir con el portal SLB (p. ej. `http://localhost:8000/api/callback`).
-
-| Ruta | Uso |
-|------|-----|
-| `GET /api/auth/login` | Inicia sesión SLB (redirige a CSI) |
-| `GET /api/callback` | Redirect URI OAuth |
-| `GET /api/auth/me` | Estado de sesión (cookie o Bearer) |
-| `GET /api/auth/logout` | Borra cookies de sesión |
-
-Tras login, Swagger (`/docs`) y las cookies `httpOnly` permiten llamar `POST /api/planned-surveys/xml`. También puedes enviar `Authorization: Bearer <access_token>`.
-
-Para **exigir** login en el POST XML, define `SLB_AUTH_REQUIRED=true` en `.env`.
-
-## Ejemplo (PowerShell)
+## Example (PowerShell)
 
 ```powershell
 $body = @{
@@ -111,72 +115,67 @@ $body = @{
   )
 } | ConvertTo-Json -Depth 5
 
-Invoke-RestMethod -Uri "http://127.0.0.1:8000/api/planned-surveys/xml" -Method Post -Body $body -ContentType "application/json" -OutFile Planned_surveys_.xml
+Invoke-RestMethod -Uri "http://localhost:8000/api/planned-surveys/xml" -Method Post -Body $body -ContentType "application/json" -OutFile Planned_surveys_.xml
 ```
 
-## Desplegar en Azure (nube pública)
+## Deploy to Azure (public cloud)
 
-Requisitos: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) y una suscripción Azure (puede ser **gratis** con el plan F1).
+Requirements: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) and an Azure subscription (F1 free tier available).
 
-1. Elige un nombre **único global** (solo minúsculas y números), por ejemplo `plannedsurveyspvargas6`.
+1. Choose a globally unique app name (lowercase, alphanumeric), e.g. `plannedsurveysyourname`.
 
-2. En PowerShell:
+2. PowerShell:
 
 ```powershell
-cd C:\Users\PVargas6\Projects\planned-surveys-api
-winget install -e --id Microsoft.AzureCLI   # si aún no lo tienes; reinicia la terminal
-az login                                     # cuenta Microsoft / suscripción pública
-.\scripts\deploy-azure.ps1 -AppName plannedsurveyspvargas6
+cd C:\Apps\planned-surveys-api
+winget install -e --id Microsoft.AzureCLI
+az login
+.\scripts\deploy-azure.ps1 -AppName plannedsurveysyourname
 ```
 
-3. URLs resultantes (sustituye el nombre):
+3. Resulting URLs:
 
-| Uso | URL |
+| Use | URL |
 |-----|-----|
-| Health | `https://plannedsurveyspvargas6.azurewebsites.net/health` |
-| Swagger | `https://plannedsurveyspvargas6.azurewebsites.net/docs` |
-| Generar XML | `POST https://plannedsurveyspvargas6.azurewebsites.net/api/planned-surveys/xml` |
+| Health | `https://plannedsurveysyourname.azurewebsites.net/health` |
+| Swagger | `https://plannedsurveysyourname.azurewebsites.net/docs` |
+| Generate XML | `POST https://plannedsurveysyourname.azurewebsites.net/api/planned-surveys/xml` |
 
-Plan **F1**: sin costo de compute en tier free (con límites de CPU/memoria). Para producción estable usa `-Sku B1` en el script.
+**F1** is free compute with limits; use `-Sku B1` in the script for steadier production.
 
-Infraestructura: `infra/main.bicep` (App Service Linux, Python 3.12, HTTPS obligatorio).
+Infrastructure: `infra/main.bicep` (Linux App Service, Python 3.12, HTTPS).
 
-### Opción B — Portal Azure (sin CLI en tu PC)
+### Option B — Azure Portal
 
-1. Entra a [portal.azure.com](https://portal.azure.com) con una suscripción **pública** (Azure for Students, Pay-as-you-go, etc.).
-2. **Deploy a custom template** → sube `infra/portal-deploy.bicep` y define el parámetro `appName` (único, minúsculas).
-3. En el Web App creado: **Deployment Center** → ZIP o GitHub → sube el contenido del proyecto (carpetas `app`, `requirements.txt`; **no** subas `.venv`).
-4. Comprueba `https://<appName>.azurewebsites.net/health`.
+1. [portal.azure.com](https://portal.azure.com).
+2. Deploy custom template → `infra/portal-deploy.bicep`, parameter `appName`.
+3. Deployment Center → deploy `app`, `requirements.txt` (not `.venv`).
+4. Verify `https://<appName>.azurewebsites.net/health`.
 
-### Opción C — GitHub Actions
+### Option C — GitHub Actions
 
-1. Sube el repo a GitHub.
-2. En el Web App (ya creado con Bicep o Portal): **Download publish profile** → secret `AZURE_WEBAPP_PUBLISH_PROFILE` en el repo.
-3. **Actions** → workflow **Deploy to Azure App Service** → Run workflow con tu `app_name`.
+1. Push to GitHub.
+2. Publish profile → secret `AZURE_WEBAPP_PUBLISH_PROFILE`.
+3. Run workflow **Deploy to Azure App Service**.
 
 ---
 
-## Publicar en DDH (`https://ddh.apps.slb.com/`)
+## Publishing on DDH (`https://ddh.apps.slb.com/`)
 
-DDH usa **Azure App Service** con inicio de sesión **Microsoft Entra ID** (al abrir el sitio redirige a `login.microsoftonline.com` y vuelve por `/.auth/login/aad/callback`).
+DDH uses **Azure App Service** with **Microsoft Entra ID** (Easy Auth).
 
-Esta API encaja como **Web App** nueva o como ruta detrás del mismo front door. Tras el despliegue que gestione tu equipo de DDH/DevOps, la URL objetivo sería algo como:
+Target endpoint after platform deployment, for example:
 
 `POST https://ddh.apps.slb.com/api/planned-surveys/xml`
 
-(o, si la montan bajo subpath, `https://ddh.apps.slb.com/planned-surveys/api/planned-surveys/xml` y variable de entorno `ROOT_PATH=/planned-surveys`).
+Or with a subpath: `ROOT_PATH=/planned-surveys` and  
+`POST https://ddh.apps.slb.com/planned-surveys/api/planned-surveys/xml`.
 
-**Qué necesitas del lado SLB (no se puede hacer desde aquí sin permisos):**
+**Platform team responsibilities:**
 
-1. Slot o app en el mismo tenant/suscripción que `ddh.apps.slb.com`.
-2. Pipeline de despliegue (repo interno, Azure DevOps, etc.).
-3. Autenticación: normalmente **Easy Auth** ya exige login; para llamadas desde scripts puede hacer falta un token Bearer o una app registration — lo define el equipo de plataforma.
+1. App slot in the same tenant/subscription as `ddh.apps.slb.com`.
+2. Internal deployment pipeline.
+3. Auth for scripts (Bearer token / app registration) per platform standards.
 
-**Artefactos listos en este repo:**
-
-- `requirements.txt` + `startup.sh` (comando típico en App Service Linux: `bash startup.sh`).
-- Variable opcional `ROOT_PATH` si hay reverse proxy con prefijo.
-
-**Health check para el equipo de plataforma:** `GET /health`
-
-Si ya existe en DDH un patrón (monorepo, plantilla Bicep, nombre de resource group), comparte el repo o el contacto del pipeline y adaptamos el despliegue al estándar interno.
+**Repo artifacts:** `requirements.txt`, `startup.sh`, optional `ROOT_PATH`.  
+**Health check:** `GET /health`

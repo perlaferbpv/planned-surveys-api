@@ -1,4 +1,41 @@
-# WITSML structure and column reference
+# WITSML structure, API, and SLB auth
+
+## SLB OAuth (CSI)
+
+| Env var | Typical value |
+|---------|----------------|
+| `SLB_AUTHORIZATION_URL` | `https://csi.slb.com/v2/auth` |
+| `SLB_TOKEN_URL` | `https://csi.slb.com/v2/token` |
+| `SLB_REDIRECT_URI` | `http://localhost:8000/api/callback` |
+| `SLB_SCOPES` | e.g. `ccm-user-context-cfsservice.slbservice.com` |
+| `SLB_TOKEN_CLIENT_AUTH` | `basic` |
+
+Register **`SLB_REDIRECT_URI` exactly** in the SLB portal. Use the **same browser host** for the app (`localhost:8000` if redirect uses `localhost`).
+
+### Flow
+
+1. `GET /api/auth/login` → CSI with `state` (in-memory, 10 min TTL)
+2. User signs in → `GET /api/callback?code&state`
+3. Exchange code at `SLB_TOKEN_URL` (Basic auth with `CLIENT_ID` / `CLIENT_SECRET`)
+4. `create_session(token_data)` → cookie `ps_session_id`
+5. Redirect `302` → `/app`
+6. `session_is_valid()` reads session store; `/app` serves `web/index.html`
+
+### Files
+
+| File | Role |
+|------|------|
+| `app/slb_auth.py` | Authorize URL, token exchange, JWT email claims |
+| `app/session_store.py` | In-memory sessions keyed by `ps_session_id` |
+| `app/slb_auth_deps.py` | `session_is_valid`, `require_slb_user`, Bearer fallback |
+| `web/login.html` | Split hero (Unsplash) + SLB logo (`web/slbLogo.png`) |
+
+### Common login-loop causes
+
+- Opening `127.0.0.1` while `SLB_REDIRECT_URI` uses `localhost` (or vice versa)
+- Storing huge JWTs in cookies (fixed: server-side session)
+- Cookie `path` not `/` (fixed)
+- `uvicorn --reload` clearing sessions mid-test
 
 ## XML skeleton
 
@@ -12,49 +49,16 @@
     <trajectoryStation uid="…">
       <typeTrajStation>tie in point|unknown</typeTrajStation>
       <md uom="m">…</md>
-      <tvd uom="m">…</tvd>
-      <incl uom="deg">…</incl>
-      <azi uom="deg">…</azi>
-      <dispNs uom="m">…</dispNs>
-      <dispEw uom="m">…</dispEw>
-      <vertSect uom="m">…</vertSect>
-      <dls uom="deg/30m">…</dls>
-      <mdDelta uom="m">…</mdDelta>
+      …
     </trajectoryStation>
-  <commonData><itemState>plan</itemState></commonData>
+    <commonData><itemState>plan</itemState></commonData>
   </trajectory>
 </trajectorys>
 ```
 
 ## Header aliases (paste)
 
-Direct header names (priority):
-
-| Header | Field |
-|--------|-------|
-| MD | `md` |
-| Incl | `incl` |
-| Azim | `azi` |
-| TVD | `tvd` |
-| DeltaMD | `mdDelta` |
-| VSEC | `vertSect` |
-| DLS | `dls` |
-| NS | `dispNs` |
-| EW | `dispEw` |
-
-Other accepted aliases (non-exhaustive; see `web/witsml.js`):
-
-| Field | Examples |
-|-------|----------|
-| `md` | Measured Depth, DEPTH, Measured Depth (ft) |
-| `incl` | Inclination, INC, Hole Inclination |
-| `azi` | Azi, Azimuth, Azim Grid, Hole Azimuth |
-| `tvd` | True Vertical Depth |
-| `mdDelta` | mdDelta, Delta MD |
-| `vertSect` | vertSect, Vertical Section |
-| `dls` | Dogleg, DLS (°/30m) |
-| `dispNs` | dispNs, Northing |
-| `dispEw` | dispEw, Easting |
+See `web/column-aliases.md` and `HEADER_ALIASES` in `web/witsml.js`.
 
 ## Geodetic 12-column layout (no headers)
 
@@ -69,8 +73,6 @@ Other accepted aliases (non-exhaustive; see `web/witsml.js`):
 | 11 | DeltaTVD (skip) |
 | 12 | dls |
 
-With headers, column order may vary; extra columns are ignored.
-
 ## API request schema
 
 ```json
@@ -81,26 +83,20 @@ With headers, column order may vary; extra columns are ignored.
     "trajectory_name": "Survey: Plan",
     "trajectory_uid": "Survey_Plan"
   },
-  "stations": [
-    {
-      "md": 0,
-      "incl": 0,
-      "azi": 0,
-      "tvd": 0,
-      "mdDelta": "-999.25",
-      "vertSect": 0,
-      "dls": "-999.25",
-      "dispNs": 0,
-      "dispEw": 0
-    }
-  ]
+  "stations": [{ "md": 0, "incl": 0, "azi": 0, "tvd": 0 }]
 }
 ```
 
-`meta` is optional; defaults match Excel macro.
+## Deployment
 
-## Deployment notes
-
-- `ROOT_PATH` env for reverse-proxy subpaths (e.g. DDH)
+- `ROOT_PATH` for reverse-proxy subpaths
 - `GET /health` for probes
-- Azure/Linux: `startup.sh` runs uvicorn on `PORT`
+- Azure: `startup.sh`, `requirements.txt`, app settings mirror `.env`
+- Static `web/` also mounted at `/` for assets (`witsml.js`, icons, fonts)
+
+## Test suite
+
+`tests/test_api_endpoints.py` — all HTTP routes including login, callback, `/app` gate.  
+`tests/test_slb_auth.py`, `tests/test_witsml.py`.
+
+Run: `.\.venv\Scripts\python.exe -m pytest tests -v`

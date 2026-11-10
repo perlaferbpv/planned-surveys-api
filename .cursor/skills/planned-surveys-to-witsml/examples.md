@@ -1,55 +1,55 @@
 # Examples
 
-## PowerShell → local API
+## Browser (SLB login)
+
+1. `uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`
+2. Open `http://localhost:8000/`
+3. **Continue to SLB sign-in** → CSI → return to `/app`
+4. Paste survey data → export XML (client-side via `witsml.js`)
+
+## PowerShell → local API (no browser)
 
 ```powershell
 $body = @{
-  meta = @{
-    name_well = "Well 1"
-    name_wellbore = "Borehole 1"
-  }
+  meta = @{ name_well = "Well 1"; name_wellbore = "Borehole 1" }
   stations = @(
-    @{
-      md = 0; incl = 0; azi = 0; tvd = 0
-      mdDelta = "-999.25"; vertSect = 0; dls = "-999.25"; dispNs = 0; dispEw = 0
-    },
-    @{
-      md = 10; incl = 0; azi = 87; tvd = 10
-      mdDelta = 10; vertSect = 0; dls = 0; dispNs = 0; dispEw = 0
-    }
+    @{ md = 0; incl = 0; azi = 0; tvd = 0
+       mdDelta = "-999.25"; vertSect = 0; dls = "-999.25"; dispNs = 0; dispEw = 0 }
   )
 } | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod `
-  -Uri "http://127.0.0.1:8000/api/planned-surveys/xml" `
+  -Uri "http://localhost:8000/api/planned-surveys/xml" `
   -Method Post `
   -Body $body `
   -ContentType "application/json" `
   -OutFile Planned_surveys_.xml
 ```
 
+With `SLB_AUTH_REQUIRED=true`, add session cookie from browser or:
+
+```powershell
+Invoke-RestMethod ... -Headers @{ Authorization = "Bearer <access_token>" }
+```
+
 ## curl
 
 ```bash
-curl -s -X POST http://127.0.0.1:8000/api/planned-surveys/xml \
+curl -s -X POST http://localhost:8000/api/planned-surveys/xml \
   -H "Content-Type: application/json" \
   -d '{"stations":[{"md":0,"incl":0,"azi":0,"tvd":0}]}' \
   -o Planned_surveys_.xml
 ```
 
-## Minimal station row (missing opcionals)
+## Check session
 
-Omitted or null fields become `-999.25` in XML after normalization.
+```bash
+curl -s -b cookies.txt -c cookies.txt http://localhost:8000/api/auth/me
+```
 
 ## Paste workflow (agent)
 
-User pastes TSV from Compass / geodetic report:
-
-1. Detect header row vs raw 12-column grid.
-2. Produce `stations` array in chat or save as `.json`.
-3. Run API or import into `build_planned_surveys_xml` for one-off scripts.
-
-Example derived row after mapping:
+Map TSV/geodetic report → `stations` JSON → POST or `build_planned_surveys_xml`.
 
 ```json
 {
@@ -65,4 +65,4 @@ Example derived row after mapping:
 }
 ```
 
-European decimals in paste (`45,25`) are normalized to dots in output.
+European decimals (`45,25`) normalize to dots in XML output.
