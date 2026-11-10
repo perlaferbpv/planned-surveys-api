@@ -39,9 +39,12 @@ If the workflow fails with **404** / *Ensure GitHub Pages has been enabled*:
 
 ## 3. Public URL
 
-`https://<user>.github.io/<repo>/`
+**This repo:** [https://worktopublic.github.io/planned-surveys-api/](https://worktopublic.github.io/planned-surveys-api/)
 
-Static converter only (paste Excel columns B–J → `Planned_surveys_.xml`). For SLB login, deploy FastAPI (Azure/Render/local on port 8000).
+**Pattern:** `https://<user>.github.io/<repo>/` — always include the repo name (`planned-surveys-api`).  
+Do **not** use `https://worktopublic.github.io/login`; `/login` is only on **FastAPI** (port 8000), not GitHub Pages.
+
+Static converter only (paste survey → `Planned_surveys_.xml`). For SLB login, deploy FastAPI (Azure/Render/local on port 8000) and open `/login` there.
 
 ## 4. Later updates
 
