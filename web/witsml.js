@@ -45,8 +45,8 @@ function geodetic12ColumnMap(offset = 0) {
   };
 }
 
-/** Reporte 12 cols con Closure: DeltaMD~6, VSEC~7, DLS~9, NS/EW~10–11. */
-function closureReport12ColumnMap(offset = 0) {
+/** Reporte 12 cols: Closure antes que DLS (DLS en col. 10). */
+function closureBeforeDls12ColumnMap(offset = 0) {
   return {
     md: offset + 0,
     incl: offset + 1,
@@ -55,6 +55,21 @@ function closureReport12ColumnMap(offset = 0) {
     mdDelta: offset + 6,
     vertSect: offset + 7,
     dls: offset + 9,
+    dispNs: offset + 10,
+    dispEw: offset + 11,
+  };
+}
+
+/** Reporte 12 cols: DLS antes que Closure (DLS en col. 9) — Compass/reporte típico. */
+function dlsBeforeClosure12ColumnMap(offset = 0) {
+  return {
+    md: offset + 0,
+    incl: offset + 1,
+    azi: offset + 2,
+    tvd: offset + 3,
+    mdDelta: offset + 6,
+    vertSect: offset + 7,
+    dls: offset + 8,
     dispNs: offset + 10,
     dispEw: offset + 11,
   };
@@ -625,9 +640,10 @@ function excelColumnLetter(index) {
   return s;
 }
 
-function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
+function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode, headerCellsOverride) {
   /** @type {Record<string, string>} */
   const labels = {};
+  const headerCells = headerCellsOverride?.map(cleanCell);
   for (const field of STATION_FIELDS) {
     const idx = columnMap[field];
     if (idx === undefined) {
@@ -638,7 +654,10 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
       labels[field] = GEODETIC_12_LABELS[field] ?? `Col ${excelColumnLetter(idx)}`;
       continue;
     }
-    if (mode === "header" && headerRowIndex >= 0) {
+    if (mode === "header" && headerCells && headerCells[idx] !== undefined) {
+      const raw = cleanCell(headerCells[idx] ?? "");
+      labels[field] = raw !== "" ? raw : `Col ${excelColumnLetter(idx)}`;
+    } else if (mode === "header" && headerRowIndex >= 0) {
       const raw = cleanCell(rows[headerRowIndex][idx] ?? "");
       labels[field] = raw !== "" ? raw : `Col ${excelColumnLetter(idx)}`;
     } else {
@@ -646,6 +665,63 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
     }
   }
   return labels;
+}
+
+/**
+ * Cabecera Excel con salto de línea en celda: filas escalonadas
+ * (MD | (m) Incl | (°) Azim Grid | …) antes de los datos.
+ */
+function looksLikeStaggeredHeaderAbove(rows, dataStartIndex) {
+  if (dataStartIndex < 4) return false;
+  if (cleanCell(rows[0][0] ?? "") === "") return false;
+  if (rows[0].length !== 1) return false;
+  const mdTok = fieldForHeaderToken(normalizeHeaderToken(rows[0][0]));
+  if (mdTok !== "md") return false;
+  const inclTok = fieldForHeaderToken(normalizeHeaderToken(rows[1][1] ?? ""));
+  if (inclTok !== "incl") return false;
+  if (dataStartIndex <= 12) return true;
+  const lastNameRow = rows[dataStartIndex - 1];
+  if (!lastNameRow?.length) return false;
+  const unitOnly =
+    lastNameRow.length === 1 &&
+    (UNIT_TOKENS.has(cleanCell(lastNameRow[0]).toLowerCase().replace(/[()]/g, "")) ||
+      /^\([^)]*\)$/.test(cleanCell(lastNameRow[0])));
+  return unitOnly;
+}
+
+function mergeStaggeredWrappedHeaderRow(rows, dataStartIndex) {
+  const colCount = maxColumnCount(rows.slice(dataStartIndex, dataStartIndex + 5));
+  /** @type {string[]} */
+  const merged = [];
+  for (let j = 0; j < colCount; j++) {
+    if (j === 0) merged.push(cleanCell(rows[0][0] ?? ""));
+    else if (j < dataStartIndex) merged.push(cleanCell(rows[j][1] ?? ""));
+    else merged.push("");
+  }
+  return merged;
+}
+
+function findStaggeredWrappedDataStart(rows) {
+  for (let i = 0; i < Math.min(rows.length, 40); i++) {
+    const cells = rows[i].map(cleanCell);
+    if (cells.length < 9) continue;
+    const numericLike = cells.filter(
+      (c) => /^-?\d/.test(c.replace(",", ".")) || c.toUpperCase() === "N/A"
+    ).length;
+    if (numericLike < Math.ceil(cells.length * 0.7)) continue;
+    if (!isNumericSurveyMd(cells[0]) && cells[0].toUpperCase() !== "N/A") continue;
+    if (looksLikeStaggeredHeaderAbove(rows, i)) return i;
+  }
+  return -1;
+}
+
+function tryParseStaggeredWrappedHeader(rows) {
+  const dataStart = findStaggeredWrappedDataStart(rows);
+  if (dataStart < 0) return null;
+  const mergedHeader = mergeStaggeredWrappedHeaderRow(rows, dataStart);
+  const map = reconcileColumnMapWithHeaderRow(mergedHeader, buildColumnMap(mergedHeader));
+  if (map.md === undefined || countMappedFields(map) < 5) return null;
+  return { map, dataStart, mergedHeader };
 }
 
 function headerMapLooksUsable(map) {
@@ -755,13 +831,18 @@ function parseNumericCell(value) {
 function scoreTwelveColumnMap(rows, map) {
   let score = 0;
   let checked = 0;
+  let dlsNaHits = 0;
   for (const row of rows) {
     const cells = row.map(cleanCell);
     if (!rowLooksLikeData(cells) || cells.length < 10) continue;
     const md = parseNumericCell(cells[map.md]);
     const mdDelta = parseNumericCell(cells[map.mdDelta]);
     const dls = parseNumericCell(cells[map.dls]);
+    const dlsRaw = cleanCell(cells[map.dls] ?? "").toUpperCase();
+    if (dlsRaw === "N/A") dlsNaHits += 1;
     const closureCol = map.dls > 0 ? parseNumericCell(cells[map.dls - 1]) : NaN;
+    const afterCol =
+      map.dls + 1 < cells.length ? parseNumericCell(cells[map.dls + 1]) : NaN;
     if (Number.isFinite(md) && md > 5 && Number.isFinite(mdDelta)) {
       if (Math.abs(mdDelta - md) <= Math.max(3, md * 0.15)) score += 4;
       else if (mdDelta > 1 && mdDelta < md * 3) score += 2;
@@ -776,14 +857,22 @@ function scoreTwelveColumnMap(rows, map) {
     ) {
       score += 2;
     }
+    if (dlsNaHits > 0 && Number.isFinite(afterCol) && Math.abs(afterCol) < md) {
+      score -= 2;
+    }
     checked += 1;
     if (checked >= 4) break;
   }
+  score += dlsNaHits * 3;
   return score;
 }
 
 function pickTwelveColumnPositionalMap(rows, offset = 0) {
-  const candidates = [closureReport12ColumnMap(offset), geodetic12ColumnMap(offset)];
+  const candidates = [
+    dlsBeforeClosure12ColumnMap(offset),
+    closureBeforeDls12ColumnMap(offset),
+    geodetic12ColumnMap(offset),
+  ];
   let best = candidates[0];
   let bestScore = -1;
   for (const map of candidates) {
@@ -847,8 +936,20 @@ export function parsePastedSurvey(text) {
   /** @type {Record<string, number>} */
   let columnMap = {};
   let mode = "header";
+  /** @type {string[] | null} */
+  let mergedHeaderCells = null;
 
-  const bestHeaderBlock = findBestHeaderRowMap(rows);
+  const staggered = tryParseStaggeredWrappedHeader(rows);
+  if (staggered) {
+    columnMap = staggered.map;
+    dataStart = staggered.dataStart;
+    mergedHeaderCells = staggered.mergedHeader;
+    headerRowIndex = 0;
+    mode = "header";
+  }
+
+  const bestHeaderBlock =
+    staggered ? null : findBestHeaderRowMap(rows);
   if (bestHeaderBlock && bestHeaderBlock.score >= 5) {
     columnMap = bestHeaderBlock.map;
     headerRowIndex = bestHeaderBlock.headerRowIndex;
@@ -861,7 +962,7 @@ export function parsePastedSurvey(text) {
     mode = "header";
   }
 
-  if (columnMap.md === undefined) {
+  if (columnMap.md === undefined && !staggered) {
     mode = "positional";
     const cleanedRows = rows.map((r) => r.map(cleanCell));
     const legacy = findLegacyStartIndex(cleanedRows);
@@ -908,7 +1009,7 @@ export function parsePastedSurvey(text) {
     }
   }
 
-  const rescanned = findBestHeaderRowMap(rows);
+  const rescanned = staggered ? null : findBestHeaderRowMap(rows);
   if (
     rescanned &&
     rescanned.score >= 5 &&
@@ -928,7 +1029,7 @@ export function parsePastedSurvey(text) {
   ));
 
   if (headerRowIndex >= 0) {
-    const headerRow = rows[headerRowIndex].map(cleanCell);
+    const headerRow = (mergedHeaderCells ?? rows[headerRowIndex]).map(cleanCell);
     const headerOnlyMap = reconcileColumnMapWithHeaderRow(
       headerRow,
       buildColumnMap(headerRow)
@@ -961,7 +1062,13 @@ export function parsePastedSurvey(text) {
         ? "header"
         : "positional";
 
-  const sourceLabels = sourceLabelsForMap(rows, columnMap, headerRowIndex, labelMode);
+  const sourceLabels = sourceLabelsForMap(
+    rows,
+    columnMap,
+    headerRowIndex,
+    labelMode,
+    mergedHeaderCells ?? undefined
+  );
 
   return { stations, sourceLabels, mode, columnMap };
 }
