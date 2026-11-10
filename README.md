@@ -32,7 +32,7 @@ HTTP service that replicates the Excel macro **Convert_and_Generate_XML_UTF8** f
 | Option | Cost | Notes |
 |--------|------|--------|
 | **Local FastAPI / Render / Azure** | Free–low | SLB login + converter at **`/app`** (port **8000**). See `.env` and route table below. |
-| **GitHub Pages / Netlify (`web/` only)** | Free | No SLB login; browser-only JS. Published URL must include the **repository name**. |
+| **GitHub Pages / Netlify (`web/` only)** | Free | **Static files only** from folder `web/`—no `/login`, `/app`, or `/api/*`. No SLB login; browser-only JS. Published URL must include the **repository name**. See [What GitHub Pages publishes](#what-github-pages-publishes). |
 | **Excel + macro** | — | No deployment needed. |
 
 ### Run converter locally (no SLB — same as Pages)
@@ -80,6 +80,21 @@ If the site looks stale after a push, wait 1–2 minutes and hard-refresh (**Ctr
 
 1. [render.com](https://render.com) → connect the repo; use `render.yaml`.
 2. `POST https://<name>.onrender.com/api/planned-surveys/xml` (free tier may sleep).
+
+### What GitHub Pages publishes
+
+Workflow: [`.github/workflows/github-pages.yml`](.github/workflows/github-pages.yml)
+
+| | |
+|--|--|
+| **Artifact** | Only the `web/` folder (static HTML/JS/images) |
+| **URL** | `https://<github-user>.github.io/<repo>/` (e.g. `https://worktopublic.github.io/planned-surveys-api/`) |
+| **Entry** | `index.html` at the site root |
+| **Not included** | FastAPI (`app/`), Python, `.env`, SLB OAuth—no server routes |
+
+GitHub Pages cannot run `uvicorn`. Routes like `/login`, `/app`, and `/api/callback` exist **only** when you host the full app (local port **8000**, Render, or Azure).
+
+After push to `main`, check **Actions → “GitHub Pages (convertidor web)”** and **Settings → Pages** for the live URL.
 
 ---
 

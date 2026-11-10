@@ -289,12 +289,32 @@
     </section>
 
     <script>
+<<<<<<< HEAD
       (function () {
         /** GitHub Pages / static server: no FastAPI, no SLB session. */
         function isStaticPublicConverter() {
           var host = window.location.hostname;
           if (host.endsWith(".github.io") || host.endsWith(".netlify.app")) {
             return true;
+=======
+      fetch("/api/auth/me", { credentials: "same-origin" })
+        .then(function (r) {
+          var ct = r.headers.get("content-type") || "";
+          if (r.status === 404 || ct.indexOf("application/json") === -1) {
+            return { staticHost: true };
+          }
+          return r.json();
+        })
+        .then(function (data) {
+          if (data && data.staticHost) {
+            var menu = document.getElementById("userMenu");
+            if (menu) menu.style.display = "none";
+            return;
+          }
+          if (!data || !data.authenticated) {
+            window.location.replace("/login");
+            return;
+>>>>>>> c133f045c4e3d9849c3b406a0444937442bcdf1e
           }
           var port = window.location.port;
           if (
