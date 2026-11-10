@@ -291,10 +291,19 @@
     <script>
       fetch("/api/auth/me", { credentials: "same-origin" })
         .then(function (r) {
+          var ct = r.headers.get("content-type") || "";
+          if (r.status === 404 || ct.indexOf("application/json") === -1) {
+            return { staticHost: true };
+          }
           return r.json();
         })
         .then(function (data) {
-          if (!data.authenticated) {
+          if (data && data.staticHost) {
+            var menu = document.getElementById("userMenu");
+            if (menu) menu.style.display = "none";
+            return;
+          }
+          if (!data || !data.authenticated) {
             window.location.replace("/login");
             return;
           }

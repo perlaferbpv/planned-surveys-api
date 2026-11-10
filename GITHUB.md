@@ -37,11 +37,20 @@ If the workflow fails with **404** / *Ensure GitHub Pages has been enabled*:
 
 3. After push to `main`, confirm the job is green.
 
-## 3. Public URL
+## 3. Public URL (exact publishing location)
 
-`https://<user>.github.io/<repo>/`
+The workflow uploads **only** the `web/` directory—not `app/`, not FastAPI.
 
-Static converter only (paste Excel columns B–J → `Planned_surveys_.xml`). For SLB login, deploy FastAPI (Azure/Render/local on port 8000).
+| Item | Value |
+|------|--------|
+| Workflow file | `.github/workflows/github-pages.yml` |
+| Published files | `web/index.html`, `web/witsml.js`, icons, fonts, etc. |
+| Live URL | `https://<github-user>.github.io/<repo-name>/` |
+| This repo example | `https://worktopublic.github.io/planned-surveys-api/` |
+
+That URL serves **static** `index.html`. It does **not** support `/login`, `/app`, or `/api/auth/login` (those need the Python app).
+
+For **SLB login + `/app`**, use Render (`render.yaml`), Azure (`azure-deploy.yml`), or local `uvicorn` on port **8000**.
 
 ## 4. Later updates
 
