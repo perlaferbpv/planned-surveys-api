@@ -517,6 +517,8 @@ function fieldForHeaderToken(token) {
     if (token.length >= 5 && alias.length >= 5 && alias.includes(token)) return field;
   }
 
+  if (token.includes("closur") || token.includes("closure")) return null;
+
   if (token.length >= 5) {
     let bestField = null;
     let bestDist = 2;
@@ -648,18 +650,66 @@ function sourceLabelsForMap(rows, columnMap, headerRowIndex, mode) {
 
 function headerMapLooksUsable(map) {
   if (map.md === undefined) return false;
-  if (countMappedFields(map) >= 6) return true;
-  if (
-    map.mdDelta !== undefined &&
-    map.dls !== undefined &&
-    map.vertSect !== undefined
-  ) {
-    return true;
-  }
-  if (map.mdDelta !== undefined && map.dls !== undefined && countMappedFields(map) >= 5) {
-    return true;
-  }
+  if (countMappedFields(map) >= 3) return true;
   return false;
+}
+
+/** Quita columnas vacías a la izquierda (pegado desde columna B en Excel). */
+function trimLeadingEmptyColumns(rows) {
+  if (!rows.length) return rows;
+  let lead = 0;
+  const limit = Math.min(rows.length, 25);
+  while (lead < maxColumnCount(rows) - 1) {
+    let allEmpty = true;
+    for (let i = 0; i < limit; i++) {
+      if (cleanCell(rows[i][lead] ?? "") !== "") {
+        allEmpty = false;
+        break;
+      }
+    }
+    if (!allEmpty) break;
+    lead += 1;
+  }
+  if (lead === 0) return rows;
+  return rows.map((row) => row.slice(lead));
+}
+
+function headerCellMapsToField(headerRow, columnIndex, field) {
+  if (columnIndex === undefined || columnIndex < 0) return false;
+  const token = normalizeHeaderToken(headerRow[columnIndex] ?? "");
+  return fieldForHeaderToken(token) === field;
+}
+
+/** Corrige dls si el índice apunta a Closure u otra columna ignorada. */
+function reconcileColumnMapWithHeaderRow(headerRow, map) {
+  const cells = headerRow.map(cleanCell);
+  const fromHeaders = buildColumnMap(cells);
+  if (fromHeaders.md === undefined) return map;
+
+  /** @type {Record<string, number>} */
+  const merged = {};
+  for (const field of STATION_FIELDS) {
+    if (fromHeaders[field] !== undefined) merged[field] = fromHeaders[field];
+    else if (map[field] !== undefined) merged[field] = map[field];
+  }
+
+  if (
+    merged.dls !== undefined &&
+    !headerCellMapsToField(cells, merged.dls, "dls")
+  ) {
+    delete merged.dls;
+    if (fromHeaders.dls !== undefined) merged.dls = fromHeaders.dls;
+    else {
+      cells.forEach((cell, index) => {
+        if (merged.dls !== undefined) return;
+        if (fieldForHeaderToken(normalizeHeaderToken(cell)) === "dls") {
+          merged.dls = index;
+        }
+      });
+    }
+  }
+
+  return merged;
 }
 
 function findBestHeaderRowMap(rows) {
@@ -668,7 +718,20 @@ function findBestHeaderRowMap(rows) {
   for (let i = 0; i < Math.min(rows.length, 25); i++) {
     const block = tryBuildHeaderFromRows(rows, i);
     if (!block || block.map.md === undefined) continue;
-    const score = countMappedFields(block.map);
+    const headerCells = rows[block.headerRowIndex].map(cleanCell);
+    let score = countMappedFields(block.map);
+    if (
+      block.map.dls !== undefined &&
+      headerCellMapsToField(headerCells, block.map.dls, "dls")
+    ) {
+      score += 2;
+    }
+    if (
+      block.map.dls !== undefined &&
+      !headerCellMapsToField(headerCells, block.map.dls, "dls")
+    ) {
+      score -= 3;
+    }
     const better =
       !best ||
       score > best.score ||
@@ -676,7 +739,7 @@ function findBestHeaderRowMap(rows) {
         block.map.mdDelta !== undefined &&
         best.map.mdDelta === undefined);
     if (better) {
-      best = { ...block, score };
+      best = { ...block, score, map: reconcileColumnMapWithHeaderRow(headerCells, block.map) };
     }
   }
   return best;
@@ -698,11 +761,21 @@ function scoreTwelveColumnMap(rows, map) {
     const md = parseNumericCell(cells[map.md]);
     const mdDelta = parseNumericCell(cells[map.mdDelta]);
     const dls = parseNumericCell(cells[map.dls]);
+    const closureCol = map.dls > 0 ? parseNumericCell(cells[map.dls - 1]) : NaN;
     if (Number.isFinite(md) && md > 5 && Number.isFinite(mdDelta)) {
       if (Math.abs(mdDelta - md) <= Math.max(3, md * 0.15)) score += 4;
       else if (mdDelta > 1 && mdDelta < md * 3) score += 2;
     }
     if (Number.isFinite(dls) && Math.abs(dls) < 15) score += 1;
+    if (
+      Number.isFinite(dls) &&
+      Number.isFinite(closureCol) &&
+      Number.isFinite(md) &&
+      Math.abs(closureCol) < md &&
+      dls >= closureCol * 2
+    ) {
+      score += 2;
+    }
     checked += 1;
     if (checked >= 4) break;
   }
@@ -727,27 +800,21 @@ function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
   const maxCols = maxColumnCount(rows);
 
   if (headerRowIndex >= 0) {
-    const headerMap = buildColumnMap(rows[headerRowIndex].map(cleanCell));
+    const headerRow = rows[headerRowIndex].map(cleanCell);
+    const headerMap = reconcileColumnMapWithHeaderRow(headerRow, buildColumnMap(headerRow));
     if (headerMap.md !== undefined && headerMapLooksUsable(headerMap)) {
       return { columnMap: headerMap, mode: "header", headerRowIndex };
     }
   }
 
-  if (mode === "header" && headerMapLooksUsable(columnMap)) {
-    return { columnMap, mode, headerRowIndex };
-  }
-
-  if (maxCols < 12) return { columnMap, mode, headerRowIndex };
-
-  if (mode === "header" && columnMap.md !== undefined && columnMap.mdDelta !== undefined) {
-    return { columnMap, mode, headerRowIndex };
-  }
+  if (maxCols < 10) return { columnMap, mode, headerRowIndex };
 
   const offset = columnMap.md ?? 0;
   const wrongSequentialBToJ =
     columnMap.mdDelta === offset + 4 && columnMap.dls === offset + 6;
   const geodeticMdDeltaAtDlsColumn = columnMap.mdDelta === offset + 9;
   const needsTwelveColLayout =
+    headerRowIndex < 0 &&
     mode !== "header" &&
     (wrongSequentialBToJ ||
       geodeticMdDeltaAtDlsColumn ||
@@ -769,7 +836,8 @@ function applyGeodetic12LayoutIfNeeded(rows, columnMap, headerRowIndex, mode) {
  * @returns {{ stations: object[], sourceLabels: Record<string,string>, mode: string }}
  */
 export function parsePastedSurvey(text) {
-  const rows = splitPastedGrid(text);
+  let rows = splitPastedGrid(text);
+  rows = trimLeadingEmptyColumns(rows);
   if (!rows.length) {
     return { stations: [], sourceLabels: {}, mode: "empty" };
   }
@@ -817,11 +885,11 @@ export function parsePastedSurvey(text) {
           break;
         }
       }
-      columnMap =
-        maxColumnCount(cleanedRows) >= 12
-          ? pickTwelveColumnPositionalMap(cleanedRows, blockStart)
-          : legacyColumnMap(blockStart, 9);
-      if (maxColumnCount(cleanedRows) >= 12) mode = "geodetic-12";
+      const wide = maxColumnCount(cleanedRows) >= 10;
+      columnMap = wide
+        ? pickTwelveColumnPositionalMap(cleanedRows, blockStart)
+        : legacyColumnMap(blockStart, 9);
+      if (wide) mode = "geodetic-12";
       headerRowIndex = -1;
       dataStart = 0;
       while (dataStart < rows.length) {
@@ -858,6 +926,18 @@ export function parsePastedSurvey(text) {
     headerRowIndex,
     mode
   ));
+
+  if (headerRowIndex >= 0) {
+    const headerRow = rows[headerRowIndex].map(cleanCell);
+    const headerOnlyMap = reconcileColumnMapWithHeaderRow(
+      headerRow,
+      buildColumnMap(headerRow)
+    );
+    if (headerOnlyMap.md !== undefined) {
+      columnMap = headerOnlyMap;
+      mode = "header";
+    }
+  }
 
   const stations = [];
   for (let r = dataStart; r < rows.length; r++) {
