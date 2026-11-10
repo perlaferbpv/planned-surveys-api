@@ -18,27 +18,48 @@ HTTP service that replicates the Excel macro **Convert_and_Generate_XML_UTF8** f
 
 `N/A`, empty, or null values become `-999.25`, same as Excel. Decimal commas normalize to dots.
 
+## Public converter (share this link)
+
+| Where | URL | Login |
+|--------|-----|--------|
+| **GitHub Pages (this repo)** | [https://worktopublic.github.io/planned-surveys-api/](https://worktopublic.github.io/planned-surveys-api/) | None |
+| **FastAPI (local / Azure / DDH)** | `http://localhost:8000/` then **`/app`** | SLB OAuth via **`/login`** |
+
+**Important:** `https://worktopublic.github.io/login` is **not** this project. GitHub Pages serves the static **`web/`** app under **`/<repo>/`**, not at the account root and not at `/login`. The path **`/login`** exists only on the **FastAPI** server (`uvicorn` on port **8000**).
+
 ## Hosting without Azure
 
 | Option | Cost | Notes |
 |--------|------|--------|
 | **Local FastAPI / Render / Azure** | Free–low | SLB login + converter at **`/app`** (port **8000**). See `.env` and route table below. |
-| **GitHub Pages / Netlify (`web/` only)** | Free | **Static files only** from folder `web/`—no `/login`, `/app`, or `/api/*`. See [What GitHub Pages publishes](#what-github-pages-publishes). |
+| **GitHub Pages / Netlify (`web/` only)** | Free | **Static files only** from folder `web/`—no `/login`, `/app`, or `/api/*`. No SLB login; browser-only JS. Published URL must include the **repository name**. See [What GitHub Pages publishes](#what-github-pages-publishes). |
 | **Excel + macro** | — | No deployment needed. |
+
+### Run converter locally (no SLB — same as Pages)
+
+Use this while you change `web/` before pushing to GitHub:
+
+```powershell
+cd C:\Users\PVargas6\Projects\planned-surveys-api\web
+python -m http.server 8080
+```
+
+Open **`http://127.0.0.1:8080/`** (do not open `index.html` with `file://`; ES modules need HTTP).
 
 ### Run locally (with SLB login)
 
 Start the API (UI on the same port **8000**):
 
 ```powershell
-cd C:\Apps\planned-surveys-api
+cd C:\Users\PVargas6\Projects\planned-surveys-api
 .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open **`http://localhost:8000/`** (same host as `SLB_REDIRECT_URI` in `.env`—use **`localhost`**, not `127.0.0.1`) → **Sign in with SLB** → converter at `/app`.
+Open **`http://localhost:8000/`** (same host as `SLB_REDIRECT_URI` in `.env`—use **`localhost`**, not `127.0.0.1`) → **Sign in with SLB** → converter at **`/app`** (not `/login` after you are signed in).
 
-Do **not** use port **8080** or `python -m http.server` for the secured app.
+Use **`python -m http.server`** on port **8080** only for the **static** converter without OAuth—not for the secured FastAPI app.
 
 ### Free public URL (Netlify Drop)
 
@@ -48,9 +69,12 @@ Do **not** use port **8080** or `python -m http.server` for the secured app.
 
 ### GitHub Pages
 
-1. Push **`web/`** (or the whole repo with Pages rooted at `/web`).
-2. **Settings → Pages** → branch `main`.
-3. URL: `https://<user>.github.io/<repo>/`.
+1. Push to **`main`**; workflow **GitHub Pages (convertidor web)** publishes the **`web/`** folder (see `.github/workflows/github-pages.yml`).
+2. **Settings → Pages** → **Source: GitHub Actions** (save once if the first deploy fails).
+3. Live URL for this repo: **`https://worktopublic.github.io/planned-surveys-api/`**
+4. General pattern: `https://<user>.github.io/<repo>/` — always include **`<repo>`** (here: `planned-surveys-api`).
+
+If the site looks stale after a push, wait 1–2 minutes and hard-refresh (**Ctrl+F5**). To redeploy manually: **Actions** → re-run the Pages workflow.
 
 ### Render (optional)
 
@@ -77,12 +101,14 @@ After push to `main`, check **Actions → “GitHub Pages (convertidor web)”**
 ## Local FastAPI
 
 ```powershell
-cd C:\Apps\planned-surveys-api
+cd C:\Users\PVargas6\Projects\planned-surveys-api
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+For **static `web/` only**, see [Run converter locally (no SLB)](#run-converter-locally-no-slb--same-as-pages) above.
 
 ### Main routes
 
@@ -142,7 +168,7 @@ Requirements: [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cl
 2. PowerShell:
 
 ```powershell
-cd C:\Apps\planned-surveys-api
+cd C:\Users\PVargas6\Projects\planned-surveys-api
 winget install -e --id Microsoft.AzureCLI
 az login
 .\scripts\deploy-azure.ps1 -AppName plannedsurveysyourname

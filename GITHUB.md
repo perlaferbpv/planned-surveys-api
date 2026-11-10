@@ -41,6 +41,8 @@ If the workflow fails with **404** / *Ensure GitHub Pages has been enabled*:
 
 The workflow uploads **only** the `web/` directory—not `app/`, not FastAPI.
 
+**This repo:** [https://worktopublic.github.io/planned-surveys-api/](https://worktopublic.github.io/planned-surveys-api/)
+
 | Item | Value |
 |------|--------|
 | Workflow file | `.github/workflows/github-pages.yml` |
@@ -48,7 +50,10 @@ The workflow uploads **only** the `web/` directory—not `app/`, not FastAPI.
 | Live URL | `https://<github-user>.github.io/<repo-name>/` |
 | This repo example | `https://worktopublic.github.io/planned-surveys-api/` |
 
-That URL serves **static** `index.html`. It does **not** support `/login`, `/app`, or `/api/auth/login` (those need the Python app).
+**Pattern:** `https://<user>.github.io/<repo>/` — always include the repo name (`planned-surveys-api`).  
+Do **not** use `https://worktopublic.github.io/login`; `/login` is only on **FastAPI** (port 8000), not GitHub Pages.
+
+That URL serves **static** `index.html` (paste survey → `Planned_surveys_.xml`). It does **not** support `/login`, `/app`, or `/api/auth/login` (those need the Python app).
 
 For **SLB login + `/app`**, use Render (`render.yaml`), Azure (`azure-deploy.yml`), or local `uvicorn` on port **8000**.
 
