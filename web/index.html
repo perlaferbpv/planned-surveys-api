@@ -76,6 +76,23 @@
         gap: 12px;
         flex-shrink: 0;
       }
+      .user-menu {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text);
+        min-width: 140px;
+      }
+      .user-menu a {
+        color: var(--slb-brand);
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .user-menu a:hover {
+        text-decoration: underline;
+      }
       .top-actions {
         display: flex;
         gap: 10px;
@@ -208,6 +225,10 @@
     <header class="top-bar">
       <h1 class="page-title">Planned surveys to xml (WITSML)</h1>
       <div class="top-bar-right">
+        <div class="user-menu" id="userMenu">
+          <span id="userEmail"></span>
+          <a href="/api/auth/logout">Sign out</a>
+        </div>
         <div class="top-actions">
           <div class="action-wrap">
             <span class="action-label">Export as xml</span>
@@ -267,6 +288,23 @@
       </table>
     </section>
 
+    <script>
+      fetch("/api/auth/me", { credentials: "same-origin" })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data.authenticated) {
+            window.location.replace("/login");
+            return;
+          }
+          var el = document.getElementById("userEmail");
+          if (el) el.textContent = data.email || "Signed in";
+        })
+        .catch(function () {
+          window.location.replace("/login");
+        });
+    </script>
     <script type="module">
       import {
         buildPlannedSurveysXml,

@@ -1,12 +1,31 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from datetime import timezone
+from pathlib import Path
+from typing import Annotated, Any
+from urllib.parse import quote
 
-from fastapi import FastAPI, HTTPException, Response
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from app.slb_auth import (
+    build_authorization_url,
+    email_from_tokens,
+    handle_oauth_callback,
+    resolve_frontend_url,
+    slb_auth_required,
+    token_expires_at,
+)
+from app.slb_auth_deps import access_token_from_request, require_slb_user, session_is_valid
 from app.witsml import build_planned_surveys_xml
+
+load_dotenv()
+
+WEB_DIR = Path(__file__).resolve().parent.parent / "web"
 
 # Si DDH monta la app bajo un subpath (p. ej. /planned-surveys), define ROOT_PATH=/planned-surveys
 _root_path = os.environ.get("ROOT_PATH", "").rstrip("/")
@@ -46,11 +65,37 @@ class GenerateRequest(BaseModel):
 
 
 @app.get("/")
-def index() -> dict[str, str]:
-    return {
+def home(request: Request) -> RedirectResponse:
+    if session_is_valid(request):
+        return RedirectResponse("/app", status_code=302)
+    return RedirectResponse("/login", status_code=302)
+
+
+@app.get("/login")
+def login_page() -> FileResponse:
+    return FileResponse(WEB_DIR / "login.html")
+
+
+@app.get("/app")
+def app_page(request: Request) -> Response:
+    if not session_is_valid(request):
+        return RedirectResponse("/login", status_code=302)
+    return FileResponse(WEB_DIR / "index.html")
+
+
+@app.get("/api")
+def api_meta() -> dict[str, str]:
+    links: dict[str, str] = {
         "message": "POST /api/planned-surveys/xml con JSON de estaciones (columnas B–J del Excel).",
         "health": "/health",
+        "docs": "/docs",
+        "app": "/app",
+        "login": "/login",
     }
+    if os.getenv("CLIENT_ID"):
+        links["slb_login"] = "/api/auth/login"
+        links["slb_session"] = "/api/auth/me"
+    return links
 
 
 @app.get("/health")
@@ -58,8 +103,105 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/api/auth/login")
+def slb_login() -> RedirectResponse:
+    try:
+        url = build_authorization_url()
+    except ValueError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return RedirectResponse(url=url, status_code=302)
+
+
+@app.get("/api/auth/logout")
+def slb_logout() -> RedirectResponse:
+    response = RedirectResponse(url=resolve_frontend_url() + "/login", status_code=302)
+    for name in ("slb_access_token", "slb_refresh_token", "slb_id_token", "slb_expires_at"):
+        response.delete_cookie(name)
+    return response
+
+
+@app.get("/api/auth/me")
+def slb_me(request: Request) -> JSONResponse:
+    token = access_token_from_request(request)
+    if not token:
+        return JSONResponse({"authenticated": False})
+    id_token = request.cookies.get("slb_id_token", "")
+    return JSONResponse(
+        {
+            "authenticated": True,
+            "email": email_from_tokens(token, id_token),
+            "auth_required_for_xml": slb_auth_required(),
+        }
+    )
+
+
+@app.get("/api/callback")
+def slb_callback(
+    code: str | None = Query(default=None),
+    state: str | None = Query(default=None),
+    error: str | None = Query(default=None),
+    error_description: str | None = Query(default=None),
+) -> Response:
+    try:
+        token_data = handle_oauth_callback(
+            code=code,
+            state=state,
+            error=error,
+            error_description=error_description,
+        )
+    except ValueError as exc:
+        detail = quote(str(exc), safe="")
+        return RedirectResponse(
+            url=f"{resolve_frontend_url()}/login?error={detail}",
+            status_code=302,
+        )
+    except Exception as exc:
+        detail = quote(str(exc), safe="")
+        return RedirectResponse(
+            url=f"{resolve_frontend_url()}/login?error={detail}",
+            status_code=302,
+        )
+
+    access = str(token_data.get("access_token", ""))
+    refresh = str(token_data.get("refresh_token", "") or "")
+    id_token = str(token_data.get("id_token", "") or "")
+    expires = token_expires_at(token_data)
+    max_age = int(token_data.get("expires_in") or 3600)
+
+    response = RedirectResponse(url=resolve_frontend_url() + "/app", status_code=302)
+    response.set_cookie(
+        "slb_access_token",
+        access,
+        httponly=True,
+        max_age=max_age,
+        samesite="lax",
+    )
+    if refresh:
+        response.set_cookie(
+            "slb_refresh_token",
+            refresh,
+            httponly=True,
+            max_age=max_age,
+            samesite="lax",
+        )
+    if id_token:
+        response.set_cookie("slb_id_token", id_token, httponly=True, max_age=max_age, samesite="lax")
+    if expires:
+        response.set_cookie(
+            "slb_expires_at",
+            expires.astimezone(timezone.utc).isoformat(),
+            httponly=True,
+            max_age=max_age,
+            samesite="lax",
+        )
+    return response
+
+
 @app.post("/api/planned-surveys/xml")
-def generate_xml(body: GenerateRequest) -> Response:
+def generate_xml(
+    body: GenerateRequest,
+    _user: Annotated[dict[str, str], Depends(require_slb_user)],
+) -> Response:
     if not body.stations:
         raise HTTPException(status_code=400, detail="Se requiere al menos una estación (fila 4 en adelante).")
 
@@ -81,3 +223,6 @@ def generate_xml(body: GenerateRequest) -> Response:
         media_type="application/xml; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="Planned_surveys_.xml"'},
     )
+
+
+app.mount("/", StaticFiles(directory=WEB_DIR, html=False), name="web")

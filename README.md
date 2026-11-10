@@ -29,14 +29,17 @@ Tu convertidor **no necesita servidor**: es solo texto → XML. La carpeta **`we
 | **Local + enlace temporal** | Gratis | ngrok / Cloudflare Tunnel | Para pruebas rápidas, no ideal 24/7. |
 | **Excel + macro** | — | — | Sigue válido sin publicar nada. |
 
-### Probar la web en tu PC (sin publicar)
+### Probar la web en tu PC (con login SLB)
+
+Arranca la API (sirve la UI en el mismo puerto **8000**):
 
 ```powershell
-cd C:\Users\PVargas6\Projects\planned-surveys-api\web
-python -m http.server 8080
+cd C:\Apps\planned-surveys-api
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Abre `http://127.0.0.1:8080/` → pega datos del Excel → **Descargar Planned_surveys_.xml**.
+Abre `http://127.0.0.1:8000/` → pantalla **Sign in with SLB** (mismo estilo que APS Digital) → tras login, el convertidor en `/app`.
 
 ### Publicar URL gratis (Netlify Drop — sin cuenta Azure)
 
@@ -68,9 +71,31 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+**Tests (unit, sin llamar a SLB real):**
+
+```powershell
+pip install -r requirements.txt
+python -m pytest tests -v
+```
+
 **URL:** `http://127.0.0.1:8000/api/planned-surveys/xml` (método **POST**)
 
 Documentación interactiva: `http://127.0.0.1:8000/docs`
+
+### SLB OAuth (opcional)
+
+Copia `.env.example` → `.env` y rellena `CLIENT_ID`, `CLIENT_SECRET`, `APP_KEY`. El `SLB_REDIRECT_URI` debe coincidir con el portal SLB (p. ej. `http://localhost:8000/api/callback`).
+
+| Ruta | Uso |
+|------|-----|
+| `GET /api/auth/login` | Inicia sesión SLB (redirige a CSI) |
+| `GET /api/callback` | Redirect URI OAuth |
+| `GET /api/auth/me` | Estado de sesión (cookie o Bearer) |
+| `GET /api/auth/logout` | Borra cookies de sesión |
+
+Tras login, Swagger (`/docs`) y las cookies `httpOnly` permiten llamar `POST /api/planned-surveys/xml`. También puedes enviar `Authorization: Bearer <access_token>`.
+
+Para **exigir** login en el POST XML, define `SLB_AUTH_REQUIRED=true` en `.env`.
 
 ## Ejemplo (PowerShell)
 
