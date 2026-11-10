@@ -225,10 +225,6 @@
     <header class="top-bar">
       <h1 class="page-title">Planned surveys to xml (WITSML)</h1>
       <div class="top-bar-right">
-        <div class="user-menu" id="userMenu">
-          <span id="userEmail"></span>
-          <a href="/api/auth/logout">Sign out</a>
-        </div>
         <div class="top-actions">
           <div class="action-wrap">
             <span class="action-label">Export as xml</span>
@@ -289,32 +285,11 @@
     </section>
 
     <script>
-<<<<<<< HEAD
       (function () {
-        /** GitHub Pages / static server: no FastAPI, no SLB session. */
         function isStaticPublicConverter() {
           var host = window.location.hostname;
           if (host.endsWith(".github.io") || host.endsWith(".netlify.app")) {
             return true;
-=======
-      fetch("/api/auth/me", { credentials: "same-origin" })
-        .then(function (r) {
-          var ct = r.headers.get("content-type") || "";
-          if (r.status === 404 || ct.indexOf("application/json") === -1) {
-            return { staticHost: true };
-          }
-          return r.json();
-        })
-        .then(function (data) {
-          if (data && data.staticHost) {
-            var menu = document.getElementById("userMenu");
-            if (menu) menu.style.display = "none";
-            return;
-          }
-          if (!data || !data.authenticated) {
-            window.location.replace("/login");
-            return;
->>>>>>> c133f045c4e3d9849c3b406a0444937442bcdf1e
           }
           var port = window.location.port;
           if (
@@ -327,22 +302,40 @@
         }
 
         if (isStaticPublicConverter()) {
-          var menu = document.getElementById("userMenu");
-          if (menu) menu.hidden = true;
           return;
         }
 
+        var topRight = document.querySelector(".top-bar-right");
+        if (!topRight) return;
+
+        var menu = document.createElement("div");
+        menu.className = "user-menu";
+        menu.id = "userMenu";
+        var email = document.createElement("span");
+        email.id = "userEmail";
+        var logout = document.createElement("a");
+        logout.href = "/api/auth/logout";
+        logout.textContent = "Sign out";
+        menu.appendChild(email);
+        menu.appendChild(logout);
+        topRight.insertBefore(menu, topRight.firstChild);
+
         fetch("/api/auth/me", { credentials: "same-origin" })
           .then(function (r) {
+            var ct = r.headers.get("content-type") || "";
+            if (r.status === 404 || ct.indexOf("application/json") === -1) {
+              menu.remove();
+              return null;
+            }
             return r.json();
           })
           .then(function (data) {
+            if (!data) return;
             if (!data.authenticated) {
               window.location.replace("/login");
               return;
             }
-            var el = document.getElementById("userEmail");
-            if (el) el.textContent = data.email || "Signed in";
+            email.textContent = data.email || "Signed in";
           })
           .catch(function () {
             window.location.replace("/login");
