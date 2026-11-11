@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0014DC" />
+    <title>Sign in — Planned surveys (WITSML)</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        background: #fff;
+        font-family: Aptos, "Segoe UI", Arial, sans-serif;
+        color: #111;
+      }
+      .hero {
+        flex: 1;
+        min-height: 100vh;
+        background:
+          linear-gradient(
+            135deg,
+            rgba(0, 40, 85, 0.35) 0%,
+            rgba(0, 70, 130, 0.25) 100%
+          ),
+          url("https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1600&q=80")
+            center / cover no-repeat;
+      }
+      .panel {
+        flex: 1;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 3rem 4rem;
+      }
+      .content {
+        width: 100%;
+        max-width: 28rem;
+      }
+      .logo {
+        display: block;
+        height: 36px;
+        width: auto;
+        margin-bottom: 2rem;
+      }
+      h1 {
+        margin: 0 0 1rem;
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+      }
+      .lead {
+        margin: 0 0 1.5rem;
+        color: #4b5563;
+        font-size: 1rem;
+        line-height: 1.6;
+      }
+      .error {
+        margin: 0 0 1rem;
+        color: #dc2626;
+        font-size: 0.9rem;
+        line-height: 1.5;
+      }
+      .btn-primary {
+        display: inline-block;
+        width: 100%;
+        padding: 0.75em 1.25em;
+        background: #0014dc;
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.95rem;
+        text-align: center;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .btn-primary:hover {
+        background: #0012be;
+      }
+      .hint {
+        margin: 1.5rem 0 0;
+        color: #9ca3af;
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+      @media (max-width: 900px) {
+        body {
+          flex-direction: column;
+        }
+        .hero {
+          min-height: 40vh;
+        }
+        .panel {
+          padding: 2rem 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hero" role="img" aria-label="Industrial technology background"></div>
+    <main class="panel">
+      <div class="content">
+        <img class="logo" src="slbLogo.png" width="120" height="36" alt="SLB" />
+        <h1>Sign in with SLB</h1>
+        <p class="lead">
+          Use your SLB corporate account. You will be redirected to CSI SAuth to
+          approve access, then returned to the Planned surveys converter.
+        </p>
+        <p id="authError" class="error" hidden></p>
+        <a class="btn-primary" href="/api/auth/login">Continue to SLB sign-in</a>
+        <p class="hint">
+          Sign-out is available from the app header after you sign in.
+        </p>
+      </div>
+    </main>
+    <script>
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var err = params.get("error");
+        if (err) {
+          var el = document.getElementById("authError");
+          el.hidden = false;
+          el.textContent = err;
+        }
+      })();
+    </script>
+  </body>
+</html>

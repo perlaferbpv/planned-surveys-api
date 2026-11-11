@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0014DC" />
+    <title>Planned surveys to xml (WITSML)</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="alternate icon" href="favicon.svg" />
+    <style>
+      @font-face {
+        font-family: "SLB Sans";
+        src: url("fonts/SLBSans-Regular.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "SLB Sans";
+        src: url("fonts/SLBSans-Medium.otf") format("opentype");
+        font-weight: 700;
+        font-style: normal;
+        font-display: swap;
+      }
+      @font-face {
+        font-family: "SLB Sans Bold";
+        src: url("fonts/SLBSans-Bold.otf") format("opentype");
+        font-weight: 400;
+        font-style: normal;
+        font-display: swap;
+      }
+      :root {
+        --slb-brand: #0014dc;
+        --slb-brand-hover: #0012be;
+        --slb-panel: #9fadcd;
+        --slb-panel-hover: #8f9ebe;
+        --text: #55585e;
+        --label-size: 14px;
+        font-family: "SLB Sans", Aptos, "Segoe UI", Arial, sans-serif;
+        font-size: 12px;
+        color: var(--text);
+        background: #fff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 20px 28px 32px;
+        min-width: 960px;
+        font-style: normal;
+      }
+      .top-bar {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 28px;
+        min-height: 98px;
+      }
+      .page-title {
+        margin: 0;
+        flex: 1;
+        font-family: "SLB Sans Bold", "SLB Sans", Aptos, "Segoe UI", Arial, sans-serif;
+        font-size: 22px;
+        font-weight: 400;
+        font-style: normal;
+        color: var(--slb-brand);
+        line-height: 1.25;
+        padding: 0 0 10px;
+        letter-spacing: 0.01em;
+      }
+      .top-bar-right {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      .user-menu {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 4px;
+        font-size: 12px;
+        color: var(--text);
+        min-width: 140px;
+      }
+      .user-menu a {
+        color: var(--slb-brand);
+        font-weight: 700;
+        text-decoration: none;
+      }
+      .user-menu a:hover {
+        text-decoration: underline;
+      }
+      .top-actions {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+      }
+      .action-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 88px;
+      }
+      .action-label {
+        font-size: var(--label-size);
+        font-weight: 700;
+        color: var(--text);
+        text-align: center;
+        line-height: 1.2;
+        margin-bottom: 4px;
+        min-height: 28px;
+      }
+      .action-btn {
+        width: 72px;
+        height: 72px;
+        border: none;
+        border-radius: 10px;
+        background: var(--slb-panel);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+      }
+      .action-btn:hover {
+        background: var(--slb-panel-hover);
+      }
+      .action-btn svg {
+        width: 40px;
+        height: 40px;
+      }
+      #btnExport,
+      #btnClear {
+        background: var(--slb-brand);
+        border: 1px solid #fff;
+      }
+      #btnExport:hover,
+      #btnClear:hover {
+        background: var(--slb-brand-hover);
+      }
+      .icon-export,
+      .icon-clear {
+        display: block;
+        width: 44px;
+        height: 44px;
+        background-color: #fff;
+        mask: center / contain no-repeat;
+        -webkit-mask: center / contain no-repeat;
+      }
+      .icon-export {
+        mask-image: url("icons/export-as-xml.png");
+        -webkit-mask-image: url("icons/export-as-xml.png");
+      }
+      .icon-clear {
+        mask-image: url("icons/clear-sheet.png");
+        -webkit-mask-image: url("icons/clear-sheet.png");
+      }
+      .section-title {
+        color: var(--text);
+        font-size: var(--label-size);
+        font-weight: 700;
+        margin: 0 0 8px;
+      }
+      #pasteArea {
+        width: 100%;
+        min-height: 36px;
+        height: 36px;
+        resize: vertical;
+        border: 1px solid #9fadcd;
+        padding: 8px 10px;
+        font: inherit;
+        color: var(--text);
+        margin-bottom: 28px;
+      }
+      #pasteArea:focus {
+        outline: 2px solid var(--slb-panel);
+        outline-offset: 1px;
+      }
+      .preview-wrap {
+        width: 100%;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+      th,
+      td {
+        border: 1px solid #9fadcd;
+        text-align: center;
+        padding: 6px 4px;
+        font-size: 12px;
+        color: var(--text);
+      }
+      thead tr#headerNames th,
+      thead tr.units th {
+        background: var(--slb-brand);
+        color: #fff;
+        font-weight: 700;
+        border-color: var(--slb-brand);
+      }
+      tbody td {
+        background: #fff;
+        min-height: 28px;
+        padding: 4px 4px;
+        vertical-align: middle;
+      }
+      tbody td.editable-cell {
+        cursor: text;
+      }
+      tbody td.editable-cell:focus {
+        outline: 2px solid var(--slb-panel);
+        outline-offset: -2px;
+        background: #f8faff;
+      }
+      tbody tr.placeholder td:not(:focus) {
+        color: #c8ccd6;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="top-bar">
+      <h1 class="page-title">Planned surveys to xml (WITSML)</h1>
+      <div class="top-bar-right">
+        <div class="top-actions">
+          <div class="action-wrap">
+            <span class="action-label">Export as xml</span>
+            <button type="button" class="action-btn" id="btnExport" title="Export as xml">
+              <span class="icon-export" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div class="action-wrap">
+            <span class="action-label">Clear</span>
+            <button type="button" class="action-btn" id="btnClear" title="Clear">
+              <span class="icon-clear" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section>
+      <h2 class="section-title">Paste the columns here</h2>
+      <textarea
+        id="pasteArea"
+        rows="1"
+        spellcheck="false"
+        placeholder=""
+        aria-label="Paste the columns here"
+      ></textarea>
+    </section>
+
+    <section class="preview-wrap">
+      <h2 class="section-title">Preview in csv</h2>
+      <table id="previewTable">
+        <thead>
+          <tr id="headerNames">
+            <th>md</th>
+            <th>incl</th>
+            <th>azi</th>
+            <th>tvd</th>
+            <th>mdDelta</th>
+            <th>vertSect</th>
+            <th>dls</th>
+            <th>dispNs</th>
+            <th>dispEw</th>
+          </tr>
+          <tr class="units">
+            <th>m</th>
+            <th>deg</th>
+            <th>deg</th>
+            <th>m</th>
+            <th>m</th>
+            <th>m</th>
+            <th>deg/30m</th>
+            <th>m</th>
+            <th>m</th>
+          </tr>
+        </thead>
+        <tbody id="previewBody"></tbody>
+      </table>
+    </section>
+
+    <script>
+      (function () {
+        function isStaticPublicConverter() {
+          var host = window.location.hostname;
+          if (host.endsWith(".github.io") || host.endsWith(".netlify.app")) {
+            return true;
+          }
+          var port = window.location.port;
+          if (
+            (host === "localhost" || host === "127.0.0.1") &&
+            port === "8080"
+          ) {
+            return true;
+          }
+          return false;
+        }
+
+        if (isStaticPublicConverter()) {
+          return;
+        }
+
+        var topRight = document.querySelector(".top-bar-right");
+        if (!topRight) return;
+
+        var menu = document.createElement("div");
+        menu.className = "user-menu";
+        menu.id = "userMenu";
+        var email = document.createElement("span");
+        email.id = "userEmail";
+        var logout = document.createElement("a");
+        logout.href = "/api/auth/logout";
+        logout.textContent = "Sign out";
+        menu.appendChild(email);
+        menu.appendChild(logout);
+        topRight.insertBefore(menu, topRight.firstChild);
+
+        fetch("/api/auth/me", { credentials: "same-origin" })
+          .then(function (r) {
+            var ct = r.headers.get("content-type") || "";
+            if (r.status === 404 || ct.indexOf("application/json") === -1) {
+              menu.remove();
+              return null;
+            }
+            return r.json();
+          })
+          .then(function (data) {
+            if (!data) return;
+            if (!data.authenticated) {
+              window.location.replace("/login");
+              return;
+            }
+            email.textContent = data.email || "Signed in";
+          })
+          .catch(function () {
+            window.location.replace("/login");
+          });
+      })();
+    </script>
+    <script type="module">
+      import {
+        buildPlannedSurveysXml,
+        parsePastedSurvey,
+        encodeUtf8NoBom,
+        formatStationDecimals,
+        DEFAULT_META,
+        STATION_FIELDS,
+      } from "./witsml.js";
+
+      const pasteArea = document.getElementById("pasteArea");
+      const previewBody = document.getElementById("previewBody");
+
+      const PREVIEW_ROWS = 12;
+      const MAX_HISTORY = 80;
+      let currentStations = [];
+      /** @type {Record<string, string>} */
+      let currentSourceLabels = Object.fromEntries(
+        STATION_FIELDS.map((f) => [f, "—"])
+      );
+      /** @type {"auto" | "manual"} */
+      let dataEntryMode = "auto";
+      /** @type {object[]} */
+      let undoHistory = [];
+      let undoHistoryIndex = -1;
+      let isRestoringHistory = false;
+      let editHistoryTimer = 0;
+
+      function parseClipboardGrid(text) {
+        const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+        /** @type {string[][]} */
+        const grid = [];
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed && grid.length) continue;
+          const cells = line.includes("\t")
+            ? line.split("\t").map((s) => s.trim())
+            : [trimmed];
+          if (cells.some((c) => c !== "")) grid.push(cells);
+        }
+        return grid;
+      }
+
+      function ensurePreviewRowCount(need) {
+        const rows = [...previewBody.querySelectorAll("tr")];
+        while (rows.length < need) {
+          const tr = document.createElement("tr");
+          tr.appendChild(buildEditableRowCells());
+          previewBody.appendChild(tr);
+          rows.push(tr);
+        }
+        return rows;
+      }
+
+      function fillGridFromAnchor(startRowIndex, startFieldIndex, grid) {
+        const rows = ensurePreviewRowCount(startRowIndex + grid.length);
+        grid.forEach((cells, rowOffset) => {
+          const tr = rows[startRowIndex + rowOffset];
+          if (!tr) return;
+          tr.classList.remove("placeholder");
+          cells.forEach((value, colOffset) => {
+            const fieldIndex = startFieldIndex + colOffset;
+            if (fieldIndex < 0 || fieldIndex >= STATION_FIELDS.length) return;
+            const field = STATION_FIELDS[fieldIndex];
+            const td = tr.querySelector(`td[data-field="${field}"]`);
+            if (td) td.textContent = value;
+          });
+        });
+      }
+
+      function readFullTableGrid() {
+        /** @type {Record<string, string>[]} */
+        const grid = [];
+        for (const tr of previewBody.querySelectorAll("tr")) {
+          /** @type {Record<string, string>} */
+          const row = {};
+          for (const field of STATION_FIELDS) {
+            const td = tr.querySelector(`td[data-field="${field}"]`);
+            row[field] = (td?.textContent ?? "").trim();
+          }
+          grid.push(row);
+        }
+        return grid;
+      }
+
+      function readStationsFromPreviewTable() {
+        const stations = [];
+        for (const row of readFullTableGrid()) {
+          const md = row.md;
+          if (md && /^-?\d/.test(md)) stations.push(formatStationDecimals(row));
+        }
+        return stations;
+      }
+
+      function captureSnapshot() {
+        return {
+          pasteArea: pasteArea.value,
+          grid: readFullTableGrid(),
+          sourceLabels: { ...currentSourceLabels },
+          dataEntryMode,
+        };
+      }
+
+      function snapshotsEqual(a, b) {
+        return (
+          a.pasteArea === b.pasteArea &&
+          a.dataEntryMode === b.dataEntryMode &&
+          JSON.stringify(a.grid) === JSON.stringify(b.grid)
+        );
+      }
+
+      function commitHistory() {
+        if (isRestoringHistory) return;
+        const snapshot = captureSnapshot();
+        const current = undoHistory[undoHistoryIndex];
+        if (current && snapshotsEqual(current, snapshot)) return;
+        if (undoHistoryIndex < undoHistory.length - 1) {
+          undoHistory = undoHistory.slice(0, undoHistoryIndex + 1);
+        }
+        undoHistory.push(snapshot);
+        if (undoHistory.length > MAX_HISTORY) {
+          undoHistory.shift();
+        }
+        undoHistoryIndex = undoHistory.length - 1;
+      }
+
+      function restoreSnapshot(snapshot) {
+        isRestoringHistory = true;
+        pasteArea.value = snapshot.pasteArea;
+        dataEntryMode = snapshot.dataEntryMode;
+        currentSourceLabels = { ...snapshot.sourceLabels };
+        renderPreviewFromGrid(snapshot.grid, snapshot.sourceLabels, snapshot.dataEntryMode);
+        isRestoringHistory = false;
+      }
+
+      function undoEdit() {
+        if (undoHistoryIndex <= 0) return;
+        undoHistoryIndex -= 1;
+        restoreSnapshot(undoHistory[undoHistoryIndex]);
+      }
+
+      function redoEdit() {
+        if (undoHistoryIndex >= undoHistory.length - 1) return;
+        undoHistoryIndex += 1;
+        restoreSnapshot(undoHistory[undoHistoryIndex]);
+      }
+
+      function initHistory() {
+        undoHistory = [captureSnapshot()];
+        undoHistoryIndex = 0;
+      }
+
+      function scheduleCommitHistory() {
+        clearTimeout(editHistoryTimer);
+        editHistoryTimer = window.setTimeout(() => commitHistory(), 350);
+      }
+
+      function syncFromTable() {
+        currentStations = readStationsFromPreviewTable();
+      }
+
+      function buildEditableRowCells() {
+        const frag = document.createDocumentFragment();
+        for (const field of STATION_FIELDS) {
+          const td = document.createElement("td");
+          td.classList.add("editable-cell");
+          td.contentEditable = "true";
+          td.dataset.field = field;
+          td.spellcheck = false;
+          td.setAttribute("role", "textbox");
+          td.title = `Paste or type ${field}`;
+          td.addEventListener("paste", onCellPaste);
+          td.addEventListener("input", onTableEdited);
+          td.addEventListener("blur", onTableEdited);
+          frag.appendChild(td);
+        }
+        return frag;
+      }
+
+      function onTableEdited() {
+        dataEntryMode = "manual";
+        syncFromTable();
+        scheduleCommitHistory();
+      }
+
+      function onCellPaste(event) {
+        const text = event.clipboardData?.getData("text") ?? "";
+        if (!text.includes("\n") && !text.includes("\t") && !text.includes("\r")) {
+          return;
+        }
+        event.preventDefault();
+        const td = event.currentTarget;
+        const field = td.dataset.field;
+        const tr = td.closest("tr");
+        const rowIndex = [...previewBody.querySelectorAll("tr")].indexOf(tr);
+        const startFieldIndex = STATION_FIELDS.indexOf(field);
+        const grid = parseClipboardGrid(text);
+        fillGridFromAnchor(rowIndex, startFieldIndex, grid);
+        dataEntryMode = "manual";
+        syncFromTable();
+        commitHistory();
+      }
+
+      function renderPreviewFromGrid(grid, sourceLabels, mode) {
+        dataEntryMode = mode;
+        currentSourceLabels = { ...sourceLabels };
+        previewBody.innerHTML = "";
+        const total = Math.max(PREVIEW_ROWS, grid.length);
+        for (let i = 0; i < total; i++) {
+          const tr = document.createElement("tr");
+          const row = grid[i];
+          const isEmpty =
+            !row || STATION_FIELDS.every((field) => (row[field] ?? "") === "");
+          if (isEmpty) tr.classList.add("placeholder");
+          tr.appendChild(buildEditableRowCells());
+          for (const field of STATION_FIELDS) {
+            const td = tr.querySelector(`td[data-field="${field}"]`);
+            td.textContent = row?.[field] ?? "";
+          }
+          previewBody.appendChild(tr);
+        }
+        syncFromTable();
+      }
+
+      function renderPreview(stations, sourceLabels, mode = "auto") {
+        const grid = stations.map((s) => ({ ...s }));
+        while (grid.length < PREVIEW_ROWS) {
+          grid.push(Object.fromEntries(STATION_FIELDS.map((f) => [f, ""])));
+        }
+        renderPreviewFromGrid(grid, sourceLabels, mode);
+      }
+
+      function clearAll() {
+        pasteArea.value = "";
+        currentStations = [];
+        dataEntryMode = "auto";
+        currentSourceLabels = Object.fromEntries(STATION_FIELDS.map((f) => [f, "—"]));
+        renderPreview([], currentSourceLabels, "auto");
+        commitHistory();
+      }
+
+      function applyPaste() {
+        const text = pasteArea.value.trim();
+        if (!text) {
+          if (dataEntryMode === "manual" && currentStations.length) return;
+          clearAll();
+          return;
+        }
+        const { stations, sourceLabels } = parsePastedSurvey(text);
+        if (!stations.length) {
+          if (dataEntryMode === "manual" && currentStations.length) return;
+          renderPreview([], sourceLabels, "auto");
+          commitHistory();
+          return;
+        }
+        renderPreview(stations, sourceLabels, "auto");
+        commitHistory();
+      }
+
+      function sanitizeXmlFilename(name) {
+        const trimmed = (name ?? "").trim() || "Planned_surveys_.xml";
+        const base = trimmed.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_");
+        return base.toLowerCase().endsWith(".xml") ? base : `${base}.xml`;
+      }
+
+      function saveXmlBlob(blob, filename) {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+
+      function exportXml() {
+        syncFromTable();
+        if (!currentStations.length && pasteArea.value.trim()) {
+          applyPaste();
+          syncFromTable();
+        }
+        if (!currentStations.length) {
+          alert(
+            "Paste survey data above for automatic mapping, or enter values in the preview table (md is required)."
+          );
+          return;
+        }
+        const stations = currentStations.map((row) => formatStationDecimals(row));
+        currentStations = stations;
+        const xml = buildPlannedSurveysXml(stations, DEFAULT_META);
+        const blob = new Blob([encodeUtf8NoBom(xml)], {
+          type: "application/xml;charset=utf-8",
+        });
+        const chosen = window.prompt("File name", "Planned_surveys_.xml");
+        if (chosen === null) return;
+        saveXmlBlob(blob, sanitizeXmlFilename(chosen));
+      }
+
+      pasteArea.addEventListener("paste", () => {
+        setTimeout(applyPaste, 0);
+      });
+      pasteArea.addEventListener("input", applyPaste);
+
+      document.addEventListener("keydown", (e) => {
+        const mod = e.ctrlKey || e.metaKey;
+        if (!mod) return;
+        const key = e.key.toLowerCase();
+        if (key === "z" && !e.shiftKey) {
+          e.preventDefault();
+          undoEdit();
+          return;
+        }
+        if (key === "y" || (key === "z" && e.shiftKey)) {
+          e.preventDefault();
+          redoEdit();
+        }
+      });
+
+      document.getElementById("btnExport").addEventListener("click", exportXml);
+      document.getElementById("btnClear").addEventListener("click", clearAll);
+
+      clearAll();
+      initHistory();
+    </script>
+  </body>
+</html>
