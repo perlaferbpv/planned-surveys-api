@@ -269,12 +269,78 @@ const UNIT_TOKENS = new Set([
 /** Máximo de decimales en preview y XML (como la macro Excel). */
 export const MAX_DECIMAL_PLACES = 4;
 
-/** Número de survey: hasta 4 decimales, coma → punto, sin ceros finales extra. */
+/**
+ * Quita separadores de miles (punto/coma). Ej.: 1.200,50 → 1200.5 | 1.207.65 → 1207.65 | 1200.5 sin cambio.
+ */
+export function parseSurveyNumberString(value) {
+  if (value === null || value === undefined) return "";
+  let s = String(value).trim();
+  if (s === "" || s.toUpperCase() === "N/A") return s;
+
+  let sign = "";
+  if (s.startsWith("-")) {
+    sign = "-";
+    s = s.slice(1).trim();
+  }
+  s = s.replace(/\s/g, "");
+
+  const hasComma = s.includes(",");
+  const hasDot = s.includes(".");
+
+  if (hasComma && hasDot) {
+    const lastComma = s.lastIndexOf(",");
+    const lastDot = s.lastIndexOf(".");
+    if (lastComma > lastDot) {
+      s = s.replace(/\./g, "").replace(",", ".");
+    } else {
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasComma) {
+    const parts = s.split(",");
+    if (
+      parts.length === 2 &&
+      parts[1].length > 0 &&
+      parts[1].length <= MAX_DECIMAL_PLACES + 2
+    ) {
+      s = parts[0].replace(/\./g, "") + "." + parts[1];
+    } else {
+      s = s.replace(/,/g, "");
+    }
+  } else if (hasDot) {
+    const parts = s.split(".");
+    if (parts.length === 2) {
+      const frac = parts[1];
+      if (
+        frac.length === 3 &&
+        /^\d{3}$/.test(frac) &&
+        parts[0].length > 0 &&
+        parts[0].length <= 4
+      ) {
+        s = parts[0] + frac;
+      } else if (frac.length <= MAX_DECIMAL_PLACES + 2) {
+        s = parts[0] + "." + frac;
+      } else {
+        s = parts.join("");
+      }
+    } else if (parts.length > 2) {
+      const frac = parts[parts.length - 1];
+      if (/^\d+$/.test(frac) && frac.length <= MAX_DECIMAL_PLACES + 2) {
+        s = parts.slice(0, -1).join("") + "." + frac;
+      } else {
+        s = parts.join("");
+      }
+    }
+  }
+
+  return sign + s;
+}
+
+/** Número de survey: sin separadores de miles; hasta 4 decimales con punto decimal. */
 export function formatSurveyDecimal(value) {
   if (value === null || value === undefined) return "";
   const s = String(value).trim();
   if (s === "" || s.toUpperCase() === "N/A") return s;
-  const norm = s.replace(",", ".");
+  const norm = parseSurveyNumberString(s);
   if (!/^-?\d/.test(norm)) return norm;
   const n = Number(norm);
   if (!Number.isFinite(n)) return norm;
@@ -303,8 +369,8 @@ export function normalizeForXml(value) {
   if (value === null || value === undefined) return "-999.25";
   const s = String(value).trim();
   if (s === "" || s.toUpperCase() === "N/A") return "-999.25";
-  if (/^-?\d/.test(s.replace(",", "."))) return formatSurveyDecimal(s);
-  return s.replace(",", ".");
+  if (/^-?\d/.test(parseSurveyNumberString(s))) return formatSurveyDecimal(s);
+  return parseSurveyNumberString(s);
 }
 
 export function buildPlannedSurveysXml(stations, meta = {}) {
@@ -414,7 +480,7 @@ function looksLikeNumericDataLine(line) {
   if (tokens.length < 9) return false;
   const numeric = tokens.filter((t) => {
     if (!t) return true;
-    const s = t.replace(",", ".");
+    const s = parseSurveyNumberString(t);
     return /^-?\d/.test(s) || s.toUpperCase() === "N/A";
   });
   return numeric.length >= tokens.length * 0.85;
@@ -450,7 +516,7 @@ function splitPastedGrid(text) {
 }
 
 function isNumericSurveyMd(value) {
-  const s = cleanCell(value).replace(",", ".");
+  const s = parseSurveyNumberString(cleanCell(value));
   if (!s || s.toUpperCase() === "N/A") return false;
   return /^-?\d/.test(s);
 }
@@ -706,7 +772,7 @@ function findStaggeredWrappedDataStart(rows) {
     const cells = rows[i].map(cleanCell);
     if (cells.length < 9) continue;
     const numericLike = cells.filter(
-      (c) => /^-?\d/.test(c.replace(",", ".")) || c.toUpperCase() === "N/A"
+      (c) => /^-?\d/.test(parseSurveyNumberString(c)) || c.toUpperCase() === "N/A"
     ).length;
     if (numericLike < Math.ceil(cells.length * 0.7)) continue;
     if (!isNumericSurveyMd(cells[0]) && cells[0].toUpperCase() !== "N/A") continue;
@@ -822,7 +888,7 @@ function findBestHeaderRowMap(rows) {
 }
 
 function parseNumericCell(value) {
-  const s = cleanCell(value).replace(",", ".");
+  const s = parseSurveyNumberString(cleanCell(value));
   if (!s || s.toUpperCase() === "N/A") return NaN;
   const n = Number(s);
   return Number.isFinite(n) ? n : NaN;
